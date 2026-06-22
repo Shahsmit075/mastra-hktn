@@ -40,6 +40,20 @@ Runbook Sentinel addresses these failures by combining workflow orchestration, s
 ## Product Vision
 Runbook Sentinel becomes the memory and decision-support layer for incident response teams. It helps engineers move from alert to evidence-backed action faster, while preserving the safety, traceability, and human control required in production operations.
 
+## Competitive Differentiation
+Existing tools address fragments of the incident lifecycle but none combine retrieval-grounded reasoning, institutional memory, and safety evaluation into a single agent architecture:
+
+| Capability | PagerDuty / Opsgenie | Datadog AI Assistant | Generic LLM Copilots | Runbook Sentinel |
+|---|---|---|---|---|
+| Alert routing & escalation | ✅ Core function | ✅ Core function | ❌ | Integration-ready (non-goal to replace) |
+| Semantic search over past incidents | ❌ | ❌ | ❌ | ✅ Qdrant-backed institutional memory |
+| Evidence-backed remediation | ❌ | Partial (dashboard Q&A) | Hallucination-prone | ✅ Citation-enforced with Enkrypt validation |
+| Cross-incident learning | ❌ | ❌ | ❌ (stateless) | ✅ Writeback loop compounds knowledge |
+| Safety evaluation on outputs | ❌ | ❌ | ❌ | ✅ Enkrypt adherence + hallucination gates |
+| Multi-step workflow orchestration | ❌ | ❌ | ❌ | ✅ Mastra workflows with HITL |
+
+**The core differentiation**: PagerDuty is a reactive alert router. Datadog AI is a dashboard Q&A tool over current metrics. Generic LLM copilots are stateless and hallucination-prone. Runbook Sentinel is a **learning system** — it compounds institutional memory through Qdrant writeback, enforces output safety through Enkrypt evaluation, and coordinates multi-step reasoning through Mastra orchestration. Each incident makes the next one faster to resolve.
+
 ## Goals
 ### Business Goals
 - Demonstrate a production-grade AI agent architecture that uses all mandatory technologies as core infrastructure.
@@ -184,23 +198,32 @@ When an incident starts, the engineer pastes an alert payload, log sample, or me
 
 ## Success Metrics
 ### Product Metrics
-- Time to first actionable hypothesis
-- Time to retrieve a relevant prior incident
-- Percentage of incidents with a post-mortem draft generated within 5 minutes of resolution
+| Metric | Description | Target |
+|---|---|---|
+| Time to first actionable hypothesis | Latency from incident intake to first remediation suggestion | P75 < 8 seconds |
+| Time to retrieve relevant prior incident | Latency of Qdrant semantic search round-trip | P75 < 3 seconds |
+| Post-mortem draft coverage | Percentage of resolved incidents with auto-generated draft within 5 min | ≥ 90% |
 
 ### Quality Metrics
-- Retrieval precision at top 5 results
-- Percentage of final responses that pass Enkrypt AI evaluation on first attempt
-- Percentage of remediation steps with explicit evidence citations
+| Metric | Description | Target |
+|---|---|---|
+| Retrieval precision@5 | Relevance of top-5 Qdrant results on seed dataset | ≥ 0.80 |
+| Enkrypt first-pass rate | Percentage of outputs passing safety evaluation without regeneration | ≥ 85% |
+| Citation coverage | Percentage of remediation steps with non-empty `evidence_refs` | 100% (enforced by output schema) |
 
 ### User Metrics
-- Engineer-rated usefulness of recommendations
-- Post-mortem acceptance/edit distance
-- Reduction in manual searching across docs and dashboards during incident handling
+| Metric | Description | Target |
+|---|---|---|
+| Recommendation usefulness | Engineer-rated usefulness (1–5 scale) | ≥ 3.8 average |
+| Post-mortem acceptance rate | Percentage of drafts accepted with minor edits only | ≥ 70% |
+| Manual search reduction | Self-reported reduction in manual doc/dashboard searching during incidents | ≥ 50% reduction |
 
 ## Risks and Mitigations
 ### Risk: Hallucinated remediation guidance
 Mitigation: Require retrieval-backed citations, use Enkrypt output evaluation, and block or regenerate unsupported responses.
+
+### Risk: Correct hallucination check on poor retrieval
+The Enkrypt hallucination detector validates the recommendation against retrieved context, not against ground truth. If the retrieval itself is poor — low precision, wrong service, stale data — the recommendation can pass the hallucination check while still being wrong advice. Mitigation: a precision@5 threshold gate is applied before remediation generation proceeds. If the top-5 retrieval results fall below the 0.80 precision target on confidence scoring, the system flags retrieval quality as degraded, returns a constrained fallback response, and alerts the engineer that manual investigation is recommended. This is why the precision@5 ≥ 0.80 success metric is a hard operational requirement, not an aspiration.
 
 ### Risk: Sensitive data leakage in logs
 Mitigation: Use Enkrypt input detection for PII and suspicious patterns, redact content before storage or display, and restrict writeback payloads.
