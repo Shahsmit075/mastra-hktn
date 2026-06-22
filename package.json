@@ -1,0 +1,15 @@
+{
+  "name": "mastra-hktn",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Runbook Sentinel hackathon workspace",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace @runbook-sentinel/web run dev",
+    "dev:api": "npm --workspace @runbook-sentinel/api run dev",
+    "build:web": "npm --workspace @runbook-sentinel/web run build",
+    "build:api": "npm --workspace @runbook-sentinel/api run build"
+  }
+}
