@@ -90,6 +90,8 @@ const remediationOutputSchema = z.object({
 });
 ```
 
+*   **Agent vs Workflow — Round 1 Reconciliation**: In Round 1, the `RetrievalAgent`'s logic is implemented as the `evidence-retrieval` workflow — deterministic, stepwise, and without an LLM intermediary — because retrieval is a mechanical process (embed, query, normalize, rank) that doesn't benefit from LLM decision-making. The agent table defines the *logical role*; the workflow defines the *Round 1 implementation*. In Round 2, the supervisor pattern calls `RetrievalAgent` directly, delegating query strategy to the LLM when dynamic re-querying is needed mid-incident.
+
 *   **Supervisor Agent Pattern (Round 2 Evolution)**: While explicit workflows coordinate execution during Round 1, subagents are configured to support supervisor delegation for Round 2:
 ```typescript
 import { Agent } from '@mastra/core';
@@ -141,6 +143,14 @@ const incidentStore = new QdrantVector({
 
 await incidentStore.createIndex({ indexName: 'incidents', dimension: 3072, metric: 'cosine' });
 await incidentStore.createIndex({ indexName: 'runbooks', dimension: 3072, metric: 'cosine' });
+
+// Payload indexes for metadata filtering
+await incidentStore.createPayloadIndex({ indexName: 'incidents', fieldName: 'service', fieldSchema: 'keyword' });
+await incidentStore.createPayloadIndex({ indexName: 'incidents', fieldName: 'severity', fieldSchema: 'keyword' });
+await incidentStore.createPayloadIndex({ indexName: 'incidents', fieldName: 'environment', fieldSchema: 'keyword' });
+
+// log_chunks uses Qdrant client directly (hybrid search with named vectors)
+await qdrantClient.createPayloadIndex('log_chunks', { field_name: 'service', field_schema: 'keyword' });
 ```
 
 ### 5.3 Enkrypt AI: Input & Output Safety Gating
@@ -172,7 +182,8 @@ Enkrypt AI serves as a safety firewall for the application:
 *   Incident timeline tracking and blameless post-mortem draft generation.
 
 ### 7.2 Success Metrics
-*   **Time to Actionable Suggestion (MTTI)**: P75 < 8 seconds.
+*   **MTTR Reduction**: Reduction in time from incident acknowledgment to service restoration, measured against a baseline manual process on the same incident scenarios (Target: ≥ 20% reduction on seeded P75 incident scenarios).
+*   **Time to First Recommendation (P75)**: Time from incident intake to the first validated remediation proposal (Target: P75 < 8 seconds).
 *   **Retrieval Latency**: P75 < 3 seconds.
 *   **Post-Mortem Draft Coverage**: ≥ 90% of incidents within 5 minutes.
 *   **Retrieval Precision@5**: ≥ 0.80 (required before hallucination checks execute).

@@ -283,6 +283,8 @@ Mastra coordinates multi-step operational logic using typed, durable workflows.
 ### 11.5 Supervisor Agent Pattern
 Mastra supports multi-agent setups via the **Supervisor Agent** pattern. In this structure, subagents are declared on the supervisor's `agents: {}` property, and the supervisor routes incoming tasks using `stream()` or `generate()`. 
 
+> **Agent vs Workflow — Round 1 Reconciliation**: In Round 1, the `RetrievalAgent`'s logic is implemented as the `evidence-retrieval` workflow — deterministic, stepwise, and without an LLM intermediary — because retrieval is a mechanical process (embed, query, normalize, rank) that doesn't benefit from LLM decision-making. The agent table in Section 11.1 defines the *logical role*; the workflow in Section 11.4 defines the *Round 1 implementation*. In Round 2, the supervisor pattern calls `RetrievalAgent` directly, delegating query strategy to the LLM when dynamic re-querying is needed mid-incident.
+
 To maintain strict traceability during Round 1, Runbook Sentinel uses **workflows** as the explicit orchestration layer. However, the architecture is designed to evolve into a Supervisor configuration for Round 2, where an `IncidentSupervisorAgent` routes dynamically between subagents based on incident conditions:
 
 ```typescript
@@ -466,8 +468,12 @@ await incidentStore.createIndex({ indexName: 'post_mortems', dimension: 3072, me
 // Build payload indexes for metadata filtering
 await incidentStore.createPayloadIndex({ indexName: 'incidents', fieldName: 'service', fieldSchema: 'keyword' });
 await incidentStore.createPayloadIndex({ indexName: 'incidents', fieldName: 'severity', fieldSchema: 'keyword' });
+await incidentStore.createPayloadIndex({ indexName: 'incidents', fieldName: 'environment', fieldSchema: 'keyword' });
 await incidentStore.createPayloadIndex({ indexName: 'runbooks', fieldName: 'service', fieldSchema: 'keyword' });
 await incidentStore.createPayloadIndex({ indexName: 'post_mortems', fieldName: 'incident_id', fieldSchema: 'keyword' });
+
+// log_chunks uses Qdrant client directly (hybrid search with named vectors)
+await qdrantClient.createPayloadIndex('log_chunks', { field_name: 'service', field_schema: 'keyword' });
 ```
 
 ---
@@ -672,7 +678,8 @@ We demonstrate the system using a database connection pool exhaustion incident o
 ## 20. Success Metrics
 
 ### Product Metrics
-*   **Mean Time to Investigate (MTTI)**: Time from incident intake to the first remediation proposal (Target: P75 < 8 seconds).
+*   **MTTR Reduction**: Reduction in time from incident acknowledgment to service restoration, measured against a baseline manual process on the same incident scenarios (Target: ≥ 20% reduction on seeded P75 incident scenarios).
+*   **Time to First Recommendation (P75)**: Time from incident intake to the first validated remediation proposal (Target: P75 < 8 seconds).
 *   **Retrieval Response Time**: Latency of semantic queries to Qdrant (Target: P75 < 3 seconds).
 *   **Post-Mortem Coverage**: Percentage of resolved incidents with an automatically drafted post-mortem within 5 minutes (Target: ≥ 90%).
 
