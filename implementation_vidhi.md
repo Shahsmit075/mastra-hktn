@@ -31,16 +31,17 @@ Based on these two guides, do the following in exact order:
 1. Create docker-compose.yml at repo root (Postgres + Redis + Qdrant)
 2. Update apps/api/package.json with ALL of the following:
    a. dependencies and devDependencies from Guide 01
-   b. scripts section EXACTLY as:
-      "migrate": "tsx scripts/migrate-db.ts"
-      "seed": "tsx scripts/seed-qdrant.ts"
-      "smoke-test": "tsx scripts/test-workflow.ts"
+    b. scripts section EXACTLY as:
+       "dev": "tsx watch src/index.ts"
+       "build": "tsc -p tsconfig.json"
+       "start": "node dist/index.js"
+       "migrate": "tsx scripts/migrate-db.ts"
+       "seed": "tsx scripts/seed-qdrant.ts"
+       "smoke-test": "tsx scripts/test-workflow.ts"
 
    Note: These paths resolve to apps/api/scripts/*.ts because npm workspace
    scripts execute with CWD = apps/api/. Scripts must live INSIDE apps/api/scripts/.
    (Already added to apps/api/package.json — verify they're there before proceeding)
-      "dev": "tsx watch src/index.ts"
-      "build": "tsc -p tsconfig.json"
 3. Replace apps/api/tsconfig.json with the exact config from Guide 01
 4. Create apps/api/src/lib/db.ts exactly as specified in Guide 02
 5. Create apps/api/src/lib/redis.ts exactly as specified in Guide 07
@@ -344,6 +345,7 @@ If run.resume doesn't exist, check if it's: workflow.resume(runId, stepId, resum
 | `apps/api/src/mastra/tools/qdrantUpsert.ts` | 03-QDRANT | File section |
 | `apps/api/src/mastra/workflows/incidentWorkflow.ts` | 06-WORKFLOWS | Full file |
 | `apps/api/src/server.ts` | 07-API | File section |
+| `apps/api/src/index.ts` | 07-API | File section |
 | `apps/api/src/routes/alerts.ts` | 07-API | File section |
 | `apps/api/src/routes/incidents.ts` | **07-API** | Added section (was missing) |
 | `apps/api/src/routes/approve.ts` | 07-API | File section |
@@ -355,6 +357,7 @@ If run.resume doesn't exist, check if it's: workflow.resume(runId, stepId, resum
 | `apps/web/app/globals.css` | **08-FRONTEND** | Fixed: v3 syntax |
 | `apps/web/app/page.tsx` | 08-FRONTEND | File section |
 | `apps/web/app/incidents/[id]/page.tsx` | 08-FRONTEND | File section |
+| `apps/web/app/analytics/page.tsx` | **08-FRONTEND** | Added section (was missing) |
 | `apps/api/scripts/migrate-db.ts` | 02-DATABASE | File section |
 | `apps/api/scripts/seed-qdrant.ts` | 03-QDRANT | File section |
 | `apps/api/scripts/test-workflow.ts` | Day 2 prompt above | — |
