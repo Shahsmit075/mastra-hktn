@@ -340,4 +340,190 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 }
-```
+
+## File: `apps/api/src/lib/redis.ts`
+
+import Redis from 'ioredis';
+
+export const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: 3,
+  retryStrategy(times) {
+    if (times > 3) return null; // Give up after 3 attempts
+    return Math.min(times * 100, 3000);
+  },
+  lazyConnect: true,
+});
+
+redis.on('error', (err) => {
+  // Log but never crash — rate limiter is designed to fail open
+  console.error('Redis error:', err.message);
+});
+
+export async function checkRedisHealth(): Promise<boolean> {
+  try {
+    await redis.ping();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+## File: `apps/api/src/routes/incidents.ts`
+
+import { Router } from 'express';
+import { pool } from '../lib/db';
+
+const router = Router();
+
+// GET /v1/incidents — list all incidents, newest first
+router.get('/', async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, status, severity, service_id, correlation_id, created_at, resolved_at, mttr_minutes
+       FROM incidents
+       ORDER BY created_at DESC
+       LIMIT 50`
+    );
+    res.json({ incidents: result.rows });
+  } catch (err) {
+    console.error('Failed to list incidents:', err);
+    res.status(500).json({ error: 'Failed to fetch incidents' });
+  }
+});
+
+// GET /v1/incidents/:id — full incident detail with workflow state and agent outputs
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const incident = await pool.query(`SELECT * FROM incidents WHERE id = $1`, [id]);
+    if (!incident.rows.length) {
+      res.status(404).json({ error: 'Incident not found' });
+      return;
+    }
+
+    const steps = await pool.query(
+      `SELECT step_name, status, result_json, created_at, updated_at
+       FROM workflow_state WHERE incident_id = $1 ORDER BY created_at ASC`,
+      [id]
+    );
+
+    const audit = await pool.query(
+      `SELECT action, user_id, timestamp FROM audit_logs
+       WHERE incident_id = $1 ORDER BY timestamp ASC`,
+      [id]
+    );
+
+    const triageStep = steps.rows.find(s => s.step_name === 'triage');
+    const remediationStep = steps.rows.find(s => s.step_name === 'remediation');
+    const postMortemStep = steps.rows.find(s => s.step_name === 'post_mortem');
+
+    res.json({
+      ...incident.rows[0],
+      workflow: {
+        steps: steps.rows,
+        triageResult: triageStep?.result_json ?? null,
+        remediationPlan: remediationStep?.result_json ?? null,
+        postMortem: postMortemStep?.result_json ?? null,
+      },
+      auditLog: audit.rows,
+    });
+  } catch (err) {
+    console.error('Failed to fetch incident:', err);
+    res.status(500).json({ error: 'Failed to fetch incident' });
+  }
+});
+
+export default router;
+
+## File: `apps/api/src/routes/analytics.ts`
+
+import { Router } from 'express';
+import { pool } from '../lib/db';
+
+const router = Router();
+
+// GET /v1/analytics/mttr — MTTR trend data for the dashboard chart
+router.get('/mttr', async (_req, res) => {
+  try {
+    const weeklyTrend = await pool.query(
+      `SELECT
+         service_id,
+         date_trunc('week', created_at) AS week,
+         ROUND(AVG(mttr_minutes)) AS avg_mttr,
+         COUNT(*) AS incident_count,
+         COUNT(CASE WHEN severity = 'SEV1' THEN 1 END) AS sev1_count
+       FROM incidents
+       WHERE status = 'resolved'
+         AND resolved_at > NOW() - INTERVAL '90 days'
+         AND mttr_minutes IS NOT NULL
+       GROUP BY service_id, date_trunc('week', created_at)
+       ORDER BY week ASC`
+    );
+
+    const p50ByService = await pool.query(
+      `SELECT
+         service_id,
+         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY mttr_minutes) AS p50_mttr,
+         COUNT(*) AS total_incidents
+       FROM incidents
+       WHERE status = 'resolved'
+         AND resolved_at > NOW() - INTERVAL '90 days'
+         AND mttr_minutes IS NOT NULL
+       GROUP BY service_id`
+    );
+
+    res.json({
+      weeklyTrend: weeklyTrend.rows,
+      p50ByService: p50ByService.rows,
+    });
+  } catch (err) {
+    console.error('Analytics query failed:', err);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+export default router;
+
+## File: `apps/api/src/routes/knowledge.ts`
+
+import { Router } from 'express';
+import { QdrantClient } from '@qdrant/js-client-rest';
+import { requireRole } from '../middleware/auth';
+
+const router = Router();
+
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL || 'http://localhost:6333',
+  apiKey: process.env.QDRANT_API_KEY,
+});
+
+// GET /v1/knowledge/conflicts — list synthesis_drafts pending SRE review
+router.get('/conflicts', requireRole('sre_lead'), async (_req, res) => {
+  try {
+    const result = await qdrant.scroll('synthesis_drafts', {
+      limit: 20,
+      with_payload: true,
+      filter: {
+        must: [
+          { key: 'conflict_score', range: { gte: 0.6 } },
+          { key: 'resolution_status', match: { value: 'pending' } },
+        ],
+      },
+    });
+
+    res.json({
+      conflicts: result.points.map(p => ({ id: p.id, ...p.payload })),
+      total: result.points.length,
+    });
+  } catch (err: any) {
+    // Collection may not exist before first seed run
+    if (err?.message?.includes('Not found')) {
+      res.json({ conflicts: [], total: 0 });
+      return;
+    }
+    console.error('Knowledge conflicts query failed:', err);
+    res.status(500).json({ error: 'Failed to fetch conflicts' });
+  }
+});
+
+export default router;

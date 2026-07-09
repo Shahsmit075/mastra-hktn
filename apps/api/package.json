@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "migrate": "tsx scripts/migrate-db.ts",
+    "seed": "tsx scripts/seed-qdrant.ts",
+    "smoke-test": "tsx scripts/test-workflow.ts"
   },
   "dependencies": {},
   "devDependencies": {}

@@ -1,6 +1,11 @@
 # Guide 02 — Database Schema (PostgreSQL)
 
-## File to Create: `scripts/migrate-db.ts`
+## File to Create: `apps/api/scripts/migrate-db.ts`
+
+> ⚠️ This file lives inside the `apps/api/` workspace, NOT at repo root.
+> When `npm run migrate --workspace @runbook-sentinel/api` runs, the CWD is `apps/api/`,
+> so `tsx scripts/migrate-db.ts` resolves correctly to `apps/api/scripts/migrate-db.ts`.
+> `dotenv.config()` with no arguments reads from `apps/api/.env` automatically.
 
 This script is idempotent — safe to run multiple times.
 

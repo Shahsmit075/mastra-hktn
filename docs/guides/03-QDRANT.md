@@ -11,7 +11,10 @@ All collections use:
 > `text-embedding-3-large` outputs 1536 — but requires OpenAI key.
 > Use nomic-embed via Featherless to stay within the Featherless credit budget.
 
-## File: `scripts/seed-qdrant.ts`
+## File: `apps/api/scripts/seed-qdrant.ts`
+
+> ⚠️ Lives inside `apps/api/` workspace. `npm run seed --workspace @runbook-sentinel/api`
+> executes with CWD = `apps/api/`, so `dotenv.config()` reads from `apps/api/.env` — no path needed.
 
 This script:
 1. Creates all 4 collections (idempotent)
@@ -22,7 +25,7 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 
-dotenv.config({ path: 'apps/api/.env' });
+dotenv.config(); // CWD = apps/api/ at runtime — reads apps/api/.env automatically
 
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL || 'http://localhost:6333',

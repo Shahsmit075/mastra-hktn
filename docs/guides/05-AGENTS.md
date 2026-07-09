@@ -1,8 +1,25 @@
 # Guide 05 — Mastra Agents: Full Specification
 
+## ⚠️ Critical: File Creation Order
+
+Create files in this exact sequence. Agents import `primaryModel` from `../index`, so `mastra/index.ts` MUST exist before any agent file is created. Reverse order = TypeScript circular import error.
+
+```
+1. apps/api/src/mastra/index.ts        ← CREATE FIRST
+2. apps/api/src/mastra/agents/triageAgent.ts
+3. apps/api/src/mastra/agents/remediationAgent.ts
+4. apps/api/src/mastra/agents/postMortemAgent.ts
+5. (then update index.ts imports to reference the agents)
+```
+
+> **Tip for AI agents:** When generating `mastra/index.ts` first, use placeholder empty exports for the agents and add the real imports after all three agent files exist.
+
+---
+
 ## Provider Setup: Featherless AI + Mastra
 
 ### File: `apps/api/src/mastra/index.ts`
+
 
 ```typescript
 import { Mastra } from '@mastra/core';
