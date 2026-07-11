@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { redis } from '../lib/redis';
 
 const WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 100;
+const MAX_REQUESTS = 500;
 
 export async function rateLimiterMiddleware(req: Request, res: Response, next: NextFunction) {
   const key = `rate_limit:${req.ip}`;

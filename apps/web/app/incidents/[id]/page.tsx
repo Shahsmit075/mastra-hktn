@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { WorkflowGraph, WorkflowStatus } from '@/components/WorkflowGraph';
 
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,7 +33,7 @@ export default function IncidentDetailPage() {
     try {
       await api.approveIncident(id, approved, approved ? undefined : 'IC rejected — re-planning');
       setMessage(approved ? 'Plan approved! Executing remediation...' : 'Plan rejected. Incident marked failed.');
-      setTimeout(() => router.push('/'), 2000);
+      setTimeout(() => router.push('/dashboard'), 2000);
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
     } finally {
@@ -40,8 +41,8 @@ export default function IncidentDetailPage() {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-gray-950 text-gray-400 flex items-center justify-center">Loading...</div>;
-  if (!incident) return <div className="min-h-screen bg-gray-950 text-red-400 flex items-center justify-center">Incident not found</div>;
+  if (loading) return <div className="min-h-screen bg-background text-gray-400 flex items-center justify-center font-mono">INITIALIZING_FEED...</div>;
+  if (!incident) return <div className="min-h-screen bg-background text-critical flex items-center justify-center font-mono">INCIDENT_NOT_FOUND</div>;
 
   const plan = incident.workflow?.remediationPlan;
   const triage = incident.workflow?.triageResult;
@@ -52,10 +53,10 @@ export default function IncidentDetailPage() {
       <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-surface to-background pointer-events-none" />
       <div className="absolute top-0 left-0 w-full h-1 bg-amber" />
       
-      <div className="max-w-3xl mx-auto px-6 py-12 relative z-10">
+      <div className="max-w-4xl mx-auto px-6 py-12 relative z-10">
         <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => router.push('/')} className="text-gray-500 hover:text-amber transition-colors font-mono text-sm uppercase tracking-wider">
-            [← BACK_TO_FEED]
+          <button onClick={() => router.push('/dashboard')} className="text-gray-500 hover:text-amber transition-colors font-mono text-sm uppercase tracking-wider">
+            [← BACK_TO_WAR_ROOM]
           </button>
         </div>
 
@@ -72,13 +73,10 @@ export default function IncidentDetailPage() {
           )}
         </div>
 
-        {/* Status */}
-        <div className="bg-surface/80 border border-gray-800 rounded-none p-5 mb-6 backdrop-blur-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-amber/50 group-hover:bg-amber transition-colors" />
-          <p className="text-gray-500 text-xs font-mono uppercase tracking-wider mb-1">CURRENT_STATUS</p>
-          <p className="text-amber font-mono text-lg uppercase tracking-widest animate-pulse">
-            [{incident.status?.replace(/_/g, ' ')}]
-          </p>
+        {/* Workflow Visualization */}
+        <div className="bg-surface border border-gray-800 p-6 mb-6">
+          <h2 className="text-sm font-bold mb-6 font-mono text-gray-400 uppercase tracking-wider">MASTRA_WORKFLOW_STATE</h2>
+          <WorkflowGraph status={incident.status as WorkflowStatus} />
         </div>
 
         {/* Triage Result */}
