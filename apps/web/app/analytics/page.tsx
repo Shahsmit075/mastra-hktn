@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import Link from 'next/link';
+import { SeverityBadge } from '@/components/SeverityBadge';
 
 type WeeklyRow = { service_id: string; week: string; avg_mttr: number; incident_count: number; sev1_count: number };
 type P50Row = { service_id: string; p50_mttr: number; total_incidents: number };
-
-const COLORS = ['#E8A838', '#f59e0b', '#d97706', '#b45309', '#78350f']; // Amber variations
 
 export default function AnalyticsPage() {
   const [weekly, setWeekly] = useState<WeeklyRow[]>([]);
@@ -25,97 +23,123 @@ export default function AnalyticsPage() {
   const services = [...new Set(weekly.map(r => r.service_id))];
   const maxMttr = Math.max(...weekly.map(r => Number(r.avg_mttr)), 1);
 
+  const getServiceSeverity = (serviceId: string) => {
+    const serviceWeeks = weekly.filter(w => w.service_id === serviceId);
+    const totalSev1 = serviceWeeks.reduce((acc, w) => acc + (Number(w.sev1_count) || 0), 0);
+    const totalIncd = serviceWeeks.reduce((acc, w) => acc + (Number(w.incident_count) || 0), 0);
+    if (totalSev1 > 0) return 'SEV1';
+    if (totalIncd > 0) return 'SEV2';
+    return 'HEALTHY';
+  };
+
+  const getSeverityColors = (severity: string) => {
+    if (severity === 'SEV1') return { bg: 'bg-critical', text: 'text-critical', border: 'border-critical/30', cardBg: 'bg-critical-muted', delta: 'text-critical' };
+    if (severity === 'SEV2') return { bg: 'bg-warning', text: 'text-warning', border: 'border-warning/30', cardBg: 'bg-warning-muted', delta: 'text-warning' };
+    return { bg: 'bg-healthy', text: 'text-healthy', border: 'border-border-hairline', cardBg: 'bg-surface', delta: 'text-text-muted' };
+  };
+
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans relative overflow-hidden">
-      {/* Glow Effects */}
-      <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-surface to-background pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-1 bg-amber" />
-      
-      <div className="max-w-5xl mx-auto px-6 py-12 relative z-10">
-        <div className="flex items-center justify-between mb-12">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight mb-2">OPERATIONAL_ANALYTICS</h1>
-            <p className="text-gray-400 font-mono text-sm uppercase tracking-widest">90-DAY_TREND_ANALYSIS</p>
-          </div>
-          <Link href="/dashboard" className="text-gray-500 hover:text-amber transition-colors font-mono text-sm uppercase tracking-wider group flex items-center gap-2">
-            <span className="group-hover:-translate-x-1 transition-transform">←</span> BACK_TO_WAR_ROOM
-          </Link>
+    <div className="min-h-screen bg-base p-6 md:p-10">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        {/* Header Section */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-text-primary">MTTR Analytics</h1>
+          <p className="text-text-secondary mt-1">90-day rolling trend — Mean Time to Resolve by service</p>
         </div>
 
         {loading && (
-          <div className="h-64 flex items-center justify-center border border-gray-800 bg-surface/50 backdrop-blur-sm">
-            <p className="text-amber font-mono animate-pulse uppercase tracking-widest text-sm">FETCHING_TELEMETRY...</p>
+          <div className="h-64 flex items-center justify-center bg-surface border border-border-hairline rounded-xl">
+            <p className="text-text-muted animate-pulse font-mono uppercase tracking-[0.04em] text-sm">Loading telemetry...</p>
           </div>
         )}
         
         {error && (
-          <div className="h-64 flex flex-col items-center justify-center border border-critical/50 bg-critical/10 backdrop-blur-sm">
-            <p className="text-critical font-mono uppercase tracking-widest mb-2">QUERY_FAILED</p>
-            <p className="text-gray-400 text-sm font-mono">{error}</p>
+          <div className="h-64 flex flex-col items-center justify-center bg-critical-muted border border-critical/20 rounded-xl">
+            <p className="text-critical font-semibold mb-2 font-mono uppercase tracking-[0.04em]">Failed to load analytics</p>
+            <p className="text-text-muted text-sm">{error}</p>
           </div>
         )}
 
         {!loading && !error && (
           <>
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
-              {p50.length === 0
-                ? <div className="col-span-3 text-gray-500 font-mono text-center py-16 border border-gray-800 bg-surface/50 backdrop-blur-sm uppercase tracking-widest text-sm">NO_RESOLVED_INCIDENTS_DETECTED</div>
-                : p50.map((row, i) => (
-                    <div key={row.service_id} className="bg-surface border border-gray-800 p-6 relative group overflow-hidden transition-colors hover:border-amber/50">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-gray-800 group-hover:bg-amber transition-colors" />
-                      <p className="text-gray-500 font-mono text-xs uppercase tracking-widest mb-4 truncate">{row.service_id}</p>
-                      <div className="flex items-baseline gap-2">
-                        <p className="text-5xl font-bold text-amber tracking-tighter">
-                          {Number(row.p50_mttr).toFixed(0)}<span className="text-xl text-amber/60 ml-1">m</span>
-                        </p>
-                      </div>
-                      <p className="text-gray-500 font-mono text-[10px] mt-4 uppercase tracking-widest flex items-center justify-between">
-                        <span>P50_MTTR</span>
-                        <span className="text-gray-400 px-2 py-0.5 bg-gray-900 rounded-sm border border-gray-800">
-                          {row.total_incidents} INCIDENTS
-                        </span>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {p50.length === 0 ? (
+                <div className="col-span-full text-text-muted text-center py-12 bg-surface border border-border-hairline rounded-xl font-mono tracking-[0.04em] uppercase text-sm">
+                  No resolved incidents detected in the last 90 days.
+                </div>
+              ) : (
+                p50.map((row) => {
+                  const severity = getServiceSeverity(row.service_id);
+                  const colors = getSeverityColors(severity);
+                  return (
+                    <div key={row.service_id} className={`bg-surface border ${colors.border} p-5 rounded-xl shadow-sm text-center flex flex-col items-center justify-center transition-transform hover:-translate-y-1 relative overflow-hidden group`}>
+                      <div className={`absolute top-0 left-0 w-full h-1 ${colors.bg}`} />
+                      <p className="text-xs font-mono font-bold text-text-secondary uppercase tracking-[0.04em] mb-2 truncate w-full">{row.service_id}</p>
+                      <p className="text-4xl font-bold text-text-primary tracking-tighter mb-2 font-ui">
+                        {Number(row.p50_mttr).toFixed(0)}<span className="text-lg ml-1 opacity-70">m</span>
+                      </p>
+                      <p className={`text-[10px] font-mono uppercase tracking-[0.04em] ${colors.delta}`}>
+                        p50 <span className="mx-1 text-text-muted">•</span> {row.total_incidents} incidents
                       </p>
                     </div>
-                  ))}
+                  );
+                })
+              )}
             </div>
 
             {/* Trend Chart */}
             {weekly.length > 0 && (
-              <div className="bg-surface border border-gray-800 p-8 relative">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber to-transparent opacity-50" />
-                <h2 className="text-sm font-bold mb-8 font-mono text-gray-400 uppercase tracking-widest">WEEKLY_AVERAGE_MTTR</h2>
+              <div className="bg-surface border border-border-hairline rounded-xl shadow-sm overflow-hidden mt-8">
+                <div className="px-6 py-5 border-b border-border-hairline">
+                  <h2 className="text-sm font-semibold text-text-muted uppercase tracking-[0.04em] font-mono">WEEKLY AVERAGE MTTR</h2>
+                </div>
                 
-                <div className="space-y-8">
+                <div className="p-6 space-y-6">
                   {services.map((service) => {
                     const serviceData = weekly.filter(r => r.service_id === service);
+                    const severity = getServiceSeverity(service);
+                    const colors = getSeverityColors(severity);
+                    
                     return (
                       <div key={service} className="space-y-3">
-                        <h3 className="text-gray-300 font-mono text-xs uppercase tracking-widest border-b border-gray-800 pb-2">{service}</h3>
-                        <div className="space-y-3 pt-2">
-                          {serviceData.map((row) => (
-                            <div key={row.week} className="flex items-center text-sm font-mono group">
-                              <div className="w-24 text-gray-500 text-xs">{new Date(row.week).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
-                              <div className="flex-1 ml-4 relative h-6 bg-gray-900 border border-gray-800/50 rounded-r-sm overflow-hidden flex items-center">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-amber/40 to-amber/80 transition-all duration-1000 ease-out flex items-center justify-end px-2"
-                                  style={{ width: `${(Number(row.avg_mttr) / maxMttr) * 100}%` }}
-                                >
-                                  {Number(row.avg_mttr) > (maxMttr * 0.1) && (
-                                    <span className="text-[10px] text-gray-900 font-bold mix-blend-plus-lighter">{Number(row.avg_mttr).toFixed(1)}m</span>
-                                  )}
-                                </div>
-                                {Number(row.avg_mttr) <= (maxMttr * 0.1) && (
-                                  <span className="text-[10px] text-amber ml-2 font-bold">{Number(row.avg_mttr).toFixed(1)}m</span>
+                        {serviceData.map((row) => (
+                          <div key={row.week} className="flex items-center text-sm group">
+                            {/* Y-axis Labels */}
+                            <div className="w-32 flex-shrink-0 flex justify-between items-center pr-4">
+                              <span className="text-text-primary font-mono text-xs truncate max-w-[80px]" title={service}>
+                                {service}
+                              </span>
+                              <span className="text-text-muted text-[10px] uppercase font-mono">
+                                {new Date(row.week).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                            
+                            {/* Bar */}
+                            <div className="flex-1 flex items-center pr-4 bg-sunken rounded-sm h-6">
+                              <div 
+                                className={`h-6 ${colors.bg} rounded-sm transition-all duration-1000 ease-out min-w-[2px] opacity-90 group-hover:opacity-100`}
+                                style={{ width: `${Math.max(1, (Number(row.avg_mttr) / maxMttr) * 100)}%` }}
+                              />
+                            </div>
+                            
+                            {/* Values & Badges */}
+                            <div className="w-40 flex-shrink-0 flex items-center justify-end gap-3">
+                              <span className="font-bold text-text-primary font-ui text-sm min-w-[40px] text-right">
+                                {Number(row.avg_mttr).toFixed(0)}m
+                              </span>
+                              
+                              <div className="flex items-center gap-1 min-w-[70px] justify-end">
+                                {row.sev1_count > 0 ? (
+                                  <SeverityBadge severity="SEV1" />
+                                ) : (
+                                  <SeverityBadge severity={row.incident_count > 0 ? "SEV2" : "HEALTHY"} />
                                 )}
                               </div>
-                              <div className="w-48 text-right text-gray-500 text-[10px] uppercase tracking-widest flex justify-end gap-3">
-                                <span>{row.incident_count} INCD</span>
-                                {row.sev1_count > 0 && <span className="text-critical">{row.sev1_count} SEV1</span>}
-                              </div>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     );
                   })}

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { ShieldAlert } from 'lucide-react';
+import { Filter } from 'lucide-react';
+import { SeverityBadge } from '@/components/SeverityBadge';
 
 type Incident = {
   id: string;
@@ -14,28 +15,15 @@ type Incident = {
   created_at: string;
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  open: 'text-gray-500',
-  triaging: 'text-amber animate-pulse font-mono',
-  awaiting_approval: 'text-medium animate-pulse font-mono',
-  awaiting_manual_review: 'text-high font-mono',
-  executing: 'text-low animate-pulse font-mono',
-  post_mortem: 'text-indigo-400 font-mono',
-  resolved: 'text-green-500 font-mono',
-  failed: 'text-critical font-mono',
-};
-
-const SEVERITY_BADGES: Record<string, string> = {
-  SEV1: 'bg-critical text-background shadow-[0_0_8px_rgba(255,69,69,0.4)]',
-  SEV2: 'bg-high text-background shadow-[0_0_8px_rgba(255,143,0,0.4)]',
-  SEV3: 'bg-medium text-background',
-};
-
 export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [triggering, setTriggering] = useState(false);
+  
+  // Filter state
+  const [filterSeverity, setFilterSeverity] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
   async function load() {
     try {
@@ -44,7 +32,7 @@ export default function IncidentsPage() {
       setError('');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to load feed');
+      setError(err.message || 'Failed to load incidents');
     } finally {
       setLoading(false);
     }
@@ -75,79 +63,171 @@ export default function IncidentsPage() {
     }
   }
 
+  const getSeveritySpineClass = (severity: string | null) => {
+    if (!severity) return 'border-l-border-hairline';
+    if (severity === 'SEV1') return 'border-l-critical';
+    if (severity === 'SEV2') return 'border-l-warning';
+    return 'border-l-healthy';
+  };
+  
+  const getStatusBadge = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === 'awaiting_approval') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-sm font-mono text-xs uppercase tracking-[0.04em] border bg-info-muted text-info border-info/25">
+          {s.replace(/_/g, ' ')}
+        </span>
+      );
+    }
+    if (s === 'executing' || s === 'triaging') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-sm font-mono text-xs uppercase tracking-[0.04em] border bg-accent-muted text-accent border-accent/25 gap-1">
+          <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
+          {s.replace(/_/g, ' ')}
+        </span>
+      );
+    }
+    if (s === 'resolved') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-sm font-mono text-xs uppercase tracking-[0.04em] border bg-healthy-muted text-healthy border-healthy/25">
+          {s}
+        </span>
+      );
+    }
+    if (s === 'failed') {
+      return (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-sm font-mono text-xs uppercase tracking-[0.04em] border bg-critical-muted text-critical border-critical/25">
+          {s}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-sm font-mono text-xs uppercase tracking-[0.04em] border bg-neutral/10 text-text-muted border-neutral/25">
+        {s.replace(/_/g, ' ')}
+      </span>
+    );
+  };
+
+  const filteredIncidents = incidents.filter(i => {
+    if (filterSeverity !== 'ALL' && i.severity !== filterSeverity) return false;
+    if (filterStatus !== 'ALL' && i.status.toLowerCase() !== filterStatus.toLowerCase()) return false;
+    return true;
+  });
+
   return (
-    <div className="min-h-screen relative overflow-hidden bg-background">
-      {/* Background Decorators */}
-      <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-surface to-background pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-1 bg-amber" />
-      
-      <div className="max-w-4xl mx-auto px-6 py-12 relative z-10">
-        <div className="flex items-end justify-between mb-12">
+    <div className="min-h-screen bg-base p-6 md:p-10">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight mb-2">WAR_ROOM_FEED</h1>
-            <p className="text-gray-400 font-mono text-sm uppercase tracking-widest">LIVE_INCIDENT_MONITORING</p>
+            <h1 className="text-3xl font-bold tracking-tight text-text-primary">Live Incident Monitoring</h1>
+            <p className="text-text-secondary mt-1">Real-time tracking of degraded infrastructure and active alerts.</p>
           </div>
-          
           <button
             onClick={triggerDemoIncident}
             disabled={triggering}
-            className="group relative px-6 py-3 bg-surface border border-gray-800 hover:border-amber/50 disabled:opacity-50 transition-all overflow-hidden"
+            className="px-4 py-2 bg-text-primary text-text-on-accent font-medium rounded-sm hover:opacity-90 disabled:opacity-50 transition-opacity text-sm"
           >
-            <div className="absolute inset-0 bg-critical/10 translate-y-full group-hover:translate-y-0 transition-transform" />
-            <span className="relative z-10 font-mono text-sm tracking-wide">
-              {triggering ? 'INJECTING_ALERT...' : 'TRIGGER_DEMO_INCIDENT'}
-            </span>
+            {triggering ? 'Injecting Alert...' : 'Simulate Incident'}
           </button>
         </div>
 
-        {loading ? (
-          <div className="text-gray-400 text-center py-12 font-mono text-sm">INITIALIZING_FEED...</div>
-        ) : error ? (
-          <div className="text-critical text-center py-16 bg-critical/10 border border-critical/50 backdrop-blur-sm">
-            <span className="font-mono text-sm">API_ERROR: {error}</span>
-          </div>
-        ) : incidents.length === 0 ? (
-          <div className="text-gray-500 text-center py-16 bg-surface/50 border border-gray-800/50 backdrop-blur-sm">
-            <span className="font-mono text-sm">AWAITING_TELEMETRY</span>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {incidents.map(incident => (
-              <Link
-                key={incident.id}
-                href={`/incidents/${incident.id}`}
-                className="group block p-5 bg-surface border border-gray-800 hover:border-amber/50 transition-all shadow-lg shadow-black/20"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-1.5 h-1.5 bg-gray-600 rounded-full group-hover:bg-amber transition-colors" />
-                    <span className="font-semibold tracking-wide">{incident.service_id}</span>
-                    {incident.severity && (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider ${SEVERITY_BADGES[incident.severity] || 'bg-gray-700 text-gray-300'}`}>
-                        {incident.severity}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-6 text-sm">
-                    <span className={`text-xs uppercase tracking-wider ${STATUS_STYLES[incident.status] || 'text-gray-500 font-mono'}`}>
-                      [{incident.status.replace(/_/g, ' ')}]
-                    </span>
-                    <span className="font-mono text-gray-500 text-xs">
-                      {new Date(incident.created_at).toLocaleTimeString([], { hour12: false })}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        {/* Main Card */}
+        <div className="bg-surface border border-border-hairline rounded-xl shadow-sm overflow-hidden">
+          
+          {/* Sticky Filter Bar */}
+          <div className="px-6 py-3 border-b border-border-hairline bg-bg-elevated flex justify-between items-center sticky top-0 z-10">
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-semibold text-text-primary uppercase tracking-[0.04em] font-mono flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5" /> Filter by:
+              </span>
+              <div className="flex gap-2">
+                <select 
+                  value={filterSeverity} 
+                  onChange={e => setFilterSeverity(e.target.value)}
+                  className="text-xs font-mono tracking-[0.04em] uppercase text-text-muted bg-base px-2 py-1 rounded-sm border border-border-strong cursor-pointer hover:border-accent appearance-none outline-none pr-6 relative"
+                  style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23999%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .5rem top 50%', backgroundSize: '.65rem auto' }}
+                >
+                  <option value="ALL">Severity (All)</option>
+                  <option value="SEV1">SEV1</option>
+                  <option value="SEV2">SEV2</option>
+                  <option value="SEV3">SEV3</option>
+                </select>
 
-        <div className="mt-12 pt-6 border-t border-gray-800 flex justify-between items-center">
-          <Link href="/analytics" className="text-sm font-mono text-gray-400 hover:text-amber transition-colors">
-            ACCESS_MTTR_ANALYTICS →
-          </Link>
-          <div className="text-xs font-mono text-gray-600">SYSTEM_STATUS: NOMINAL</div>
+                <select 
+                  value={filterStatus} 
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="text-xs font-mono tracking-[0.04em] uppercase text-text-muted bg-base px-2 py-1 rounded-sm border border-border-strong cursor-pointer hover:border-accent appearance-none outline-none pr-6 relative"
+                  style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23999%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .5rem top 50%', backgroundSize: '.65rem auto' }}
+                >
+                  <option value="ALL">Status (All)</option>
+                  <option value="awaiting_approval">Awaiting Approval</option>
+                  <option value="executing">Executing</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+            </div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.04em] text-text-muted bg-base px-2 py-1 rounded-sm border border-border-hairline hidden md:block">
+              Auto-sync active
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-12 text-center text-text-muted animate-pulse font-mono uppercase tracking-[0.04em] text-sm">Loading feed...</div>
+            ) : error ? (
+              <div className="p-12 text-center text-critical bg-critical-muted">
+                <span className="font-semibold font-mono tracking-[0.04em] uppercase">Error:</span> {error}
+              </div>
+            ) : filteredIncidents.length === 0 ? (
+              <div className="p-16 text-center text-text-muted font-mono tracking-[0.04em]">
+                <p className="uppercase text-sm">No incidents match criteria.</p>
+                {incidents.length === 0 && <p className="text-xs mt-2 text-text-secondary">Infrastructure is nominal.</p>}
+              </div>
+            ) : (
+              <table className="w-full text-sm text-left whitespace-nowrap">
+                <thead className="bg-base border-b border-border-strong text-text-muted font-medium font-mono uppercase tracking-[0.04em] text-xs">
+                  <tr>
+                    <th className="px-6 py-4">Service</th>
+                    <th className="px-6 py-4">Severity</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Detected</th>
+                    <th className="px-6 py-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-hairline">
+                  {filteredIncidents.map((incident) => (
+                    <tr key={incident.id} className="hover:bg-elevated transition-colors group">
+                      <td className={`px-6 py-4 font-mono font-bold text-text-primary border-l-[3px] ${getSeveritySpineClass(incident.severity)}`}>
+                        {incident.service_id}
+                      </td>
+                      <td className="px-6 py-4">
+                        <SeverityBadge severity={incident.severity} />
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(incident.status)}
+                      </td>
+                      <td className="px-6 py-4 text-text-secondary font-mono text-xs tracking-[0.04em]">
+                        {new Date(incident.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link
+                          href={`/incidents/${incident.id}`}
+                          className="text-info hover:text-text-primary font-mono text-xs uppercase tracking-[0.04em] font-bold transition-colors"
+                        >
+                          View &rarr;
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
+
       </div>
     </div>
   );

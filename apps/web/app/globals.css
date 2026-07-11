@@ -3,51 +3,113 @@
 @tailwind utilities;
 
 @layer base {
+  [data-theme="dark"] {
+    /* Surfaces */
+    --bg-base:        #0B0E14;  /* app background, slightly blue-black, never pure #000 */
+    --bg-surface:      #121620;  /* cards, panels */
+    --bg-elevated:     #1A1F2C;  /* modals, popovers, hovered rows */
+    --bg-sunken:       #080A0F;  /* code blocks, log panes, raw-telemetry areas ("backstage") */
+    --border-hairline: #232838;
+    --border-strong:   #333B52;
+  
+    /* Text */
+    --text-primary:    #F1F3F8;
+    --text-secondary:  #9AA3B8;
+    --text-muted:      #5B6478;
+    --text-on-accent:  #0B0E14;
+  
+    /* Brand accent — "Signal Copper" */
+    --accent:          #E8901F;
+    --accent-strong:   #FFA83D;
+    --accent-muted:    rgba(232, 144, 31, 0.14);
+  
+    /* Secondary accent — telemetry data / links / info */
+    --info:            #4FA8E0;
+    --info-muted:      rgba(79, 168, 224, 0.14);
+  
+    /* Semantic severity */
+    --sev1-critical:   #F2495C;
+    --sev1-muted:      rgba(242, 73, 92, 0.14);
+    --sev2-warning:    #E8901F;
+    --sev2-muted:      rgba(232, 144, 31, 0.14);
+    --healthy:         #3DD68C;
+    --healthy-muted:   rgba(61, 214, 140, 0.14);
+    --neutral:         #5B6478;
+  
+    --shadow-elevated: 0 8px 24px rgba(0,0,0,0.45);
+  }
+
+  [data-theme="light"] {
+    --bg-base:        #F6F5F1;  /* warm off-white, not #FFFFFF */
+    --bg-surface:      #FFFFFF;
+    --bg-elevated:     #FFFFFF;
+    --bg-sunken:       #EDEBE5;  /* raw-telemetry / code areas */
+    --border-hairline: #E4E1D9;
+    --border-strong:   #CFCBBF;
+  
+    --text-primary:    #1B1E27;
+    --text-secondary:  #5B6478;
+    --text-muted:      #8B93A5;
+    --text-on-accent:  #FFFFFF;
+  
+    --accent:          #C8720F;   /* darkened for AA contrast on white */
+    --accent-strong:   #A85E0C;
+    --accent-muted:    rgba(200, 114, 15, 0.10);
+  
+    --info:            #2A7DBE;
+    --info-muted:      rgba(42, 125, 190, 0.10);
+  
+    --sev1-critical:   #D6304A;
+    --sev1-muted:      rgba(214, 48, 74, 0.10);
+    --sev2-warning:    #C8720F;
+    --sev2-muted:      rgba(200, 114, 15, 0.10);
+    --healthy:         #1E9E64;
+    --healthy-muted:   rgba(30, 158, 100, 0.10);
+    --neutral:         #8B93A5;
+  
+    --shadow-elevated: 0 8px 24px rgba(20,20,10,0.08);
+  }
+
   :root {
-    --background: #0D0D0D;
-    --foreground: #E0E0E0;
-    --surface: #141414;
-    --amber: #E8A838;
-    --amber-muted: #E8A83833;
-    
-    --critical: #FF4545;
-    --high: #FF8F00;
-    --medium: #FACC15;
-    --low: #3B82F6;
+    --font-ui:   "Inter", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", "JetBrains Mono", monospace;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-8: 48px;
+    --space-10: 64px;
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --duration-fast: 120ms;
+    --duration-base: 220ms;
+    --duration-slow: 480ms;
   }
 }
 
-html, body {
-  background-color: var(--background);
-  color: var(--foreground);
+@layer base {
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
-/* CRT Scanlines */
-.scanlines {
-  position: relative;
-}
-
-.scanlines::before {
-  content: " ";
-  display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  background: linear-gradient(
-    rgba(18, 16, 16, 0) 50%,
-    rgba(0, 0, 0, 0.25) 50%
-  ),
-  linear-gradient(
-    90deg,
-    rgba(255, 0, 0, 0.06),
-    rgba(0, 255, 0, 0.02),
-    rgba(0, 0, 255, 0.06)
-  );
-  z-index: 50;
-  background-size: 100% 2px, 3px 100%;
-  pointer-events: none;
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
 }
 
 /* Custom Scrollbar */
@@ -55,16 +117,13 @@ html, body {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--surface);
+  background: var(--bg-base);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+  background: var(--border-strong);
+  border-radius: var(--radius-sm);
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--amber);
+  background: var(--text-muted);
 }
