@@ -1,17 +1,11 @@
-type HealthResponse = {
-  name: string;
-  status: "ok";
-  mission: string;
-};
+import 'dotenv/config';
+import './lib/otel'; // MUST be first — initializes OTel before any imports
+import { createApp } from './server';
 
-export function getHealth(): HealthResponse {
-  return {
-    name: "runbook-sentinel-api",
-    status: "ok",
-    mission: "Coordinate incident-response workflows across Mastra, Qdrant, and Enkrypt AI.",
-  };
-}
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
-if (import.meta.main) {
-  console.log(JSON.stringify(getHealth(), null, 2));
-}
+const app = createApp();
+app.listen(PORT, () => {
+  console.log(`Runbook Sentinel API running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
+});
