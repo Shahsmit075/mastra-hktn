@@ -19,11 +19,11 @@ router.post('/gardener', async (req, res) => {
     const mastra = await getMastra();
     const synthesisAgent = mastra.getAgent('synthesisAgent');
     
-    const result = await synthesisAgent.generate(
+    const result: any = await synthesisAgent.generate(
       [
         { role: 'user', content: `[OLD_RUNBOOK]\n${oldRunbook}\n\n[NEW_POST_MORTEM]\n${newPostMortem}` }
       ],
-      { output: SynthesisSchema }
+      { output: SynthesisSchema } as any
     );
 
     let outputText = result.text || '';
@@ -53,13 +53,14 @@ router.post('/enkrypt', async (req, res) => {
     // We pass the string directly into the tool
     const result: any = await enkryptInputGuardrailTool.execute!({
       text: payload,
-      contextRefs: []
-    }, null as any);
+      contextRefs: [],
+    } as any, null as any);
 
     res.json({
-      passed: result.passed,
-      risk: result.risk,
-      flags: result.flags || []
+      passed: !result.blocked,
+      risk: result.blocked ? 'CRITICAL' : 'NONE',
+      flags: result.blockReason ? [result.blockReason] : [],
+      action: result.action,
     });
   } catch (error: any) {
     console.error('Enkrypt error:', error);
@@ -90,8 +91,8 @@ router.post('/caching', async (req, res) => {
         rawPayload: payload,
         incidentId,
         correlationId: `demo-cache-${Date.now()}`,
-      }
-    });
+      },
+    } as any);
 
     const duration = Date.now() - startTime;
     

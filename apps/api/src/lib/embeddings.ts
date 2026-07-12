@@ -4,7 +4,7 @@ const API_KEY = process.env.FEATHERLESS_API_KEY || '';
 
 export async function embedText(text: string): Promise<number[]> {
   if (!API_KEY) {
-    return Array.from({ length: 768 }, () => Math.random() * 2 - 1);
+    throw new Error('Embedding API unavailable: FEATHERLESS_API_KEY not configured');
   }
 
   const response = await fetch(`${BASE_URL}/embeddings`, {
@@ -20,10 +20,14 @@ export async function embedText(text: string): Promise<number[]> {
   });
 
   if (!response.ok) {
-    console.warn(`Embedding API error: ${response.status} — falling back to random vector`);
-    return Array.from({ length: 768 }, () => Math.random() * 2 - 1);
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`Embedding API error ${response.status}: ${errBody.slice(0, 200)}`);
   }
 
   const data = await response.json() as { data: { embedding: number[] }[] };
-  return data.data[0]?.embedding || Array.from({ length: 768 }, () => Math.random() * 2 - 1);
+  const embedding = data.data?.[0]?.embedding;
+  if (!embedding || embedding.length === 0) {
+    throw new Error('Embedding API returned empty embedding vector');
+  }
+  return embedding;
 }

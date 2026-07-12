@@ -15,15 +15,15 @@
     "demo:caching": "tsx scripts/demo-caching.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "latest",
-    "@mastra/core": "latest",
+    "@ai-sdk/openai-compatible": "^3.0.7",
+    "@mastra/core": "^1.50.1",
     "@mastra/pg": "^1.15.1",
     "@opentelemetry/auto-instrumentations-node": "^0.54.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
     "@opentelemetry/resources": "^1.30.0",
     "@opentelemetry/sdk-node": "^0.57.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
-    "@qdrant/js-client-rest": "latest",
+    "@qdrant/js-client-rest": "^1.18.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",

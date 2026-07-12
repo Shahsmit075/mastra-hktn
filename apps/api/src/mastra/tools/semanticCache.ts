@@ -1,13 +1,8 @@
 import { createTool } from '@mastra/core/tools';
-import { QdrantClient } from '@qdrant/js-client-rest';
 import { z } from 'zod';
 import { embedText } from '../../lib/embeddings';
+import { getQdrantClient } from '../../lib/qdrant';
 import { v4 as uuidv4 } from 'uuid';
-
-const qdrant = new QdrantClient({
-  url: process.env.QDRANT_URL || 'http://localhost:6333',
-  apiKey: process.env.QDRANT_API_KEY,
-});
 
 const CACHE_COLLECTION = 'semantic_cache';
 
@@ -27,6 +22,7 @@ export const semanticCacheCheckTool = createTool({
   }),
   execute: async ({ payload }) => {
     try {
+      const qdrant = getQdrantClient();
       const denseVector = await embedText(payload);
       
       const searchResponse = await qdrant.search(CACHE_COLLECTION, {
@@ -72,6 +68,7 @@ export const semanticCacheWriteTool = createTool({
   }),
   execute: async ({ payload, remediationPlan }) => {
     try {
+      const qdrant = getQdrantClient();
       const denseVector = await embedText(payload);
       const cacheId = uuidv4();
 

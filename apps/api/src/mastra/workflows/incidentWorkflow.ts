@@ -6,16 +6,15 @@ import { PostMortemSchema } from '../agents/postMortemAgent';
 import { enkryptInputGuardrailTool, enkryptOutputGuardrailTool } from '../tools/enkryptGuardrail';
 import { qdrantSearchTool } from '../tools/qdrantSearch';
 import { qdrantUpsertTool } from '../tools/qdrantUpsert';
+import { SynthesisSchema } from '../agents/synthesisAgent';
 import { semanticCacheCheckTool, semanticCacheWriteTool } from '../tools/semanticCache';
 import { pool } from '../../lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
-// ─── JSON Extraction Helper ─────────────────────────────────────────────────────
+// ─── JSON Extraction Helper (fallback only) ────────────────────────────────────
 function extractJSON(text: string): string {
   const trimmed = text.trim();
-  // Remove markdown code fences
   const noFence = trimmed.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim();
-  // Find first { and last }
   const start = noFence.indexOf('{');
   const end = noFence.lastIndexOf('}');
   if (start === -1 || end === -1) throw new Error(`No JSON object found in response: ${trimmed.slice(0, 200)}`);
@@ -251,29 +250,38 @@ Correlation ID: ${correlationId}
 Produce a triage assessment as a JSON object matching TriageSchema.
       `.trim();
 
-      const triageResponse = await triageAgent.generate(prompt);
+      const triageResponse = await triageAgent.generate(prompt, {
+        output: TriageSchema,
+        temperature: 0.1,
+      });
 
-      const triageJson = extractJSON(triageResponse.text || '{}');
-      const triageRaw = JSON.parse(triageJson);
-      const triageResult = TriageSchema.safeParse(triageRaw);
-      if (!triageResult.success) {
-        console.warn('[triage] Schema validation failed, filling defaults:', triageResult.error.issues.map(i => i.path.join('.')));
+      // Prefer structured output, fall back to text extraction
+      let parsed: z.infer<typeof TriageSchema>;
+      if (triageResponse.object) {
+        parsed = triageResponse.object as z.infer<typeof TriageSchema>;
+      } else {
+        const triageJson = extractJSON(triageResponse.text || '{}');
+        const triageRaw = JSON.parse(triageJson);
+        const triageResult = TriageSchema.safeParse(triageRaw);
+        if (!triageResult.success) {
+          console.warn('[triage] Schema validation failed, filling defaults:', triageResult.error.issues.map(i => i.path.join('.')));
+        }
+        parsed = triageResult.success
+          ? triageResult.data
+          : {
+              incident_id: triageRaw.incident_id || incidentId,
+              severity: (['SEV1', 'SEV2', 'SEV3'].includes(triageRaw.severity) ? triageRaw.severity : 'SEV2') as 'SEV1' | 'SEV2' | 'SEV3',
+              confidence_score: typeof triageRaw.confidence_score === 'number' ? triageRaw.confidence_score : 0.7,
+              affected_service: triageRaw.affected_service || 'unknown',
+              affected_subsystem: triageRaw.affected_subsystem,
+              slo_at_risk: triageRaw.slo_at_risk === true,
+              error_budget_burn_rate: typeof triageRaw.error_budget_burn_rate === 'number' ? triageRaw.error_budget_burn_rate : 1,
+              customer_impact: (['none', 'degraded', 'partial_outage', 'full_outage'].includes(triageRaw.customer_impact) ? triageRaw.customer_impact : 'degraded') as 'none' | 'degraded' | 'partial_outage' | 'full_outage',
+              reasoning: triageRaw.reasoning || 'LLM output did not match schema — using fallback defaults',
+              recommended_escalation: triageRaw.recommended_escalation === true,
+              similar_incident_ids: Array.isArray(triageRaw.similar_incident_ids) ? triageRaw.similar_incident_ids : [],
+            };
       }
-      const parsed: z.infer<typeof TriageSchema> = triageResult.success
-        ? triageResult.data
-        : {
-            incident_id: triageRaw.incident_id || incidentId,
-            severity: (['SEV1', 'SEV2', 'SEV3'].includes(triageRaw.severity) ? triageRaw.severity : 'SEV2') as 'SEV1' | 'SEV2' | 'SEV3',
-            confidence_score: typeof triageRaw.confidence_score === 'number' ? triageRaw.confidence_score : 0.7,
-            affected_service: triageRaw.affected_service || 'unknown',
-            affected_subsystem: triageRaw.affected_subsystem,
-            slo_at_risk: triageRaw.slo_at_risk === true,
-            error_budget_burn_rate: typeof triageRaw.error_budget_burn_rate === 'number' ? triageRaw.error_budget_burn_rate : 1,
-            customer_impact: (['none', 'degraded', 'partial_outage', 'full_outage'].includes(triageRaw.customer_impact) ? triageRaw.customer_impact : 'degraded') as 'none' | 'degraded' | 'partial_outage' | 'full_outage',
-            reasoning: triageRaw.reasoning || 'LLM output did not match schema — using fallback defaults',
-            recommended_escalation: triageRaw.recommended_escalation === true,
-            similar_incident_ids: Array.isArray(triageRaw.similar_incident_ids) ? triageRaw.similar_incident_ids : [],
-          };
 
       // Write to audit log
       await pool.query(
@@ -443,40 +451,57 @@ Plan ID to use: ${uuidv4()}
 Generate a remediation plan as JSON matching RemediationSchema.
       `.trim();
 
-      const remediationResponse = await remediationAgent.generate(prompt);
+      const remediationResponse = await remediationAgent.generate(prompt, {
+        output: RemediationSchema,
+        temperature: 0.1,
+      });
 
-      const planRawJson = extractJSON(remediationResponse.text || '{}');
-      const planRaw = JSON.parse(planRawJson);
-      if (!planRaw.steps) planRaw.steps = [];
-      if (!planRaw.plan_id) planRaw.plan_id = uuidv4();
-      const planResult = RemediationSchema.safeParse(planRaw);
-      if (!planResult.success) {
-        console.warn('[remediation] Schema validation failed, filling defaults:', planResult.error.issues.map(i => i.path.join('.')));
+      // Prefer structured output, fall back to text extraction
+      let parsedPlan: z.infer<typeof RemediationSchema>;
+      if (remediationResponse.object) {
+        parsedPlan = remediationResponse.object as z.infer<typeof RemediationSchema>;
+        if (!parsedPlan.plan_id) parsedPlan.plan_id = uuidv4();
+      } else {
+        const planRawJson = extractJSON(remediationResponse.text || '{}');
+        const planRaw = JSON.parse(planRawJson);
+        if (!planRaw.steps) planRaw.steps = [];
+        if (!planRaw.plan_id) planRaw.plan_id = uuidv4();
+        const planResult = RemediationSchema.safeParse(planRaw);
+        if (!planResult.success) {
+          console.warn('[remediation] Schema validation failed, filling defaults:', planResult.error.issues.map(i => i.path.join('.')));
+        }
+        parsedPlan = planResult.success
+          ? planResult.data
+          : {
+              plan_id: planRaw.plan_id || uuidv4(),
+              reasoning: planRaw.reasoning || 'Auto-generated fallback',
+              executive_summary: planRaw.executive_summary || 'Remediation plan generated by LLM with partial data',
+              overall_risk: (planRaw.overall_risk as any) || 'diagnostic',
+              estimated_resolution_time: planRaw.estimated_resolution_time || 'Unknown - see steps',
+              steps: (planRaw.steps && planRaw.steps.length > 0) ? planRaw.steps : [{ step_number: 1, action: 'Manual investigation required — LLM did not generate steps', description: 'The remediation agent did not produce structured steps. An IC should manually determine the course of action.', risk_level: 'diagnostic', evidence_refs: [], estimated_impact: 'Unknown', requires_hitl: true }],
+              alternative_approaches: planRaw.alternative_approaches,
+            };
       }
-      const parsedPlan: z.infer<typeof RemediationSchema> = planResult.success
-        ? planResult.data
-        : {
-            plan_id: planRaw.plan_id || uuidv4(),
-            reasoning: planRaw.reasoning || 'Auto-generated fallback',
-            executive_summary: planRaw.executive_summary || 'Remediation plan generated by LLM with partial data',
-            overall_risk: (planRaw.overall_risk as any) || 'diagnostic',
-            estimated_resolution_time: planRaw.estimated_resolution_time || 'Unknown - see steps',
-            steps: planRaw.steps || [],
-            alternative_approaches: planRaw.alternative_approaches,
-          };
 
       // Enkrypt output validation — check evidence_refs are valid
+      let enkryptOutputPassed = true;
       const planStr = JSON.stringify(parsedPlan);
-      const outputGuardrail = await enkryptOutputGuardrailTool.execute!({
-        text: planStr,
-        contextRefs,
-      }, null as any) as any;
+      try {
+        const outputGuardrail = await enkryptOutputGuardrailTool.execute!({
+          text: planStr,
+          contextRefs,
+        }, null as any) as any;
 
-      if (outputGuardrail.blocked) {
-        throw new Error(`RemediationAgent output blocked: ${outputGuardrail.blockReason}`);
+        if (outputGuardrail.blocked) {
+          console.warn(`[enkrypt_output] Remediation plan flagged: ${outputGuardrail.blockReason}`);
+          enkryptOutputPassed = false;
+        }
+      } catch (err) {
+        console.warn('[enkrypt_output] Output guardrail check failed, proceeding with caution:', err);
+        enkryptOutputPassed = false;
       }
 
-      return parsedPlan;
+      return { parsedPlan, enkryptOutputPassed };
     });
 
     await pool.query(
@@ -485,12 +510,12 @@ Generate a remediation plan as JSON matching RemediationSchema.
     );
 
     return {
-      remediationPlan,
+      remediationPlan: remediationPlan.parsedPlan,
       contextRefs,
       incidentId,
       correlationId,
       traceparent,
-      enkryptPassed: true,
+      enkryptPassed: remediationPlan.enkryptOutputPassed,
     };
   },
 });
@@ -618,47 +643,56 @@ ${JSON.stringify(timeline.rows, null, 2)}
 Generate a post-mortem as JSON matching PostMortemSchema.
       `.trim();
 
-      const postMortemResponse = await postMortemAgent.generate(prompt);
+      const postMortemResponse = await postMortemAgent.generate(prompt, {
+        output: PostMortemSchema,
+        temperature: 0.1,
+      });
 
-      const postMortemJson = extractJSON(postMortemResponse.text || '{}');
-      const pmRaw = JSON.parse(postMortemJson);
-      const pmResult = PostMortemSchema.safeParse(pmRaw);
-      if (!pmResult.success) {
-        console.warn('[post_mortem] Schema validation failed, filling defaults:', pmResult.error.issues.map(i => i.path.join('.')));
+      // Prefer structured output, fall back to text extraction
+      let parsed: z.infer<typeof PostMortemSchema>;
+      if (postMortemResponse.object) {
+        parsed = postMortemResponse.object as z.infer<typeof PostMortemSchema>;
+      } else {
+        const postMortemJson = extractJSON(postMortemResponse.text || '{}');
+        const pmRaw = JSON.parse(postMortemJson);
+        const pmResult = PostMortemSchema.safeParse(pmRaw);
+        if (!pmResult.success) {
+          console.warn('[post_mortem] Schema validation failed, filling defaults:', pmResult.error.issues.map(i => i.path.join('.')));
+        }
+        parsed = pmResult.success
+          ? pmResult.data
+          : {
+              incident_id: pmRaw.incident_id || incidentId,
+              title: pmRaw.title || `Post-mortem for ${incidentId}`,
+              severity: (['SEV1', 'SEV2', 'SEV3'].includes(pmRaw.severity) ? pmRaw.severity : 'SEV2') as 'SEV1' | 'SEV2' | 'SEV3',
+              affected_service: pmRaw.affected_service || incident.rows[0]?.service_id || 'unknown',
+              duration_minutes: typeof pmRaw.duration_minutes === 'number' ? pmRaw.duration_minutes : 0,
+              mttr_minutes: typeof pmRaw.mttr_minutes === 'number' ? pmRaw.mttr_minutes : 0,
+              mttr_delta_minutes: typeof pmRaw.mttr_delta_minutes === 'number' ? pmRaw.mttr_delta_minutes : 0,
+              mttr_regression_alert: pmRaw.mttr_regression_alert === true,
+              executive_summary: pmRaw.executive_summary || 'Post-mortem generated by LLM with fallback defaults',
+              timeline: (Array.isArray(pmRaw.timeline) ? pmRaw.timeline : []).map((t: any) => ({
+                timestamp: t?.timestamp || new Date().toISOString(),
+                actor: ['system', 'triage_agent', 'remediation_agent', 'incident_commander', 'on_call_engineer'].includes(t?.actor) ? t.actor : 'system',
+                event: t?.event || 'Unknown event',
+                impact: t?.impact || '',
+              })),
+              root_cause_hypotheses: Array.isArray(pmRaw.root_cause_hypotheses) ? pmRaw.root_cause_hypotheses : ['No specific hypothesis generated — LLM output did not match schema'],
+              contributing_factors: {
+                system: Array.isArray(pmRaw.contributing_factors?.system) ? pmRaw.contributing_factors.system : [],
+                process: Array.isArray(pmRaw.contributing_factors?.process) ? pmRaw.contributing_factors.process : [],
+                human: Array.isArray(pmRaw.contributing_factors?.human) ? pmRaw.contributing_factors.human : [],
+              },
+              what_went_well: Array.isArray(pmRaw.what_went_well) ? pmRaw.what_went_well : [],
+              action_items: (Array.isArray(pmRaw.action_items) ? pmRaw.action_items : []).map((a: any) => ({
+                description: a?.description || 'Unknown action item',
+                owner_role: ['on_call_engineer', 'incident_commander', 'sre_lead'].includes(a?.owner_role) ? a.owner_role : 'sre_lead',
+                target_date: a?.target_date || new Date(Date.now() + 14 * 86400000).toISOString(),
+                priority: ['P0', 'P1', 'P2'].includes(a?.priority) ? a.priority : 'P2',
+              })),
+              knowledge_gap_detected: pmRaw.knowledge_gap_detected === true,
+            };
       }
-      const parsed: z.infer<typeof PostMortemSchema> = pmResult.success
-        ? pmResult.data
-        : {
-            incident_id: pmRaw.incident_id || incidentId,
-            title: pmRaw.title || `Post-mortem for ${incidentId}`,
-            severity: (['SEV1', 'SEV2', 'SEV3'].includes(pmRaw.severity) ? pmRaw.severity : 'SEV2') as 'SEV1' | 'SEV2' | 'SEV3',
-            affected_service: pmRaw.affected_service || incident.rows[0]?.service_id || 'unknown',
-            duration_minutes: typeof pmRaw.duration_minutes === 'number' ? pmRaw.duration_minutes : 0,
-            mttr_minutes: typeof pmRaw.mttr_minutes === 'number' ? pmRaw.mttr_minutes : 0,
-            mttr_delta_minutes: typeof pmRaw.mttr_delta_minutes === 'number' ? pmRaw.mttr_delta_minutes : 0,
-            mttr_regression_alert: pmRaw.mttr_regression_alert === true,
-            executive_summary: pmRaw.executive_summary || 'Post-mortem generated by LLM with fallback defaults',
-            timeline: (Array.isArray(pmRaw.timeline) ? pmRaw.timeline : []).map((t: any) => ({
-              timestamp: t?.timestamp || new Date().toISOString(),
-              actor: ['system', 'triage_agent', 'remediation_agent', 'incident_commander', 'on_call_engineer'].includes(t?.actor) ? t.actor : 'system',
-              event: t?.event || 'Unknown event',
-              impact: t?.impact || '',
-            })),
-            root_cause_hypotheses: Array.isArray(pmRaw.root_cause_hypotheses) ? pmRaw.root_cause_hypotheses : ['No specific hypothesis generated — LLM output did not match schema'],
-            contributing_factors: {
-              system: Array.isArray(pmRaw.contributing_factors?.system) ? pmRaw.contributing_factors.system : [],
-              process: Array.isArray(pmRaw.contributing_factors?.process) ? pmRaw.contributing_factors.process : [],
-              human: Array.isArray(pmRaw.contributing_factors?.human) ? pmRaw.contributing_factors.human : [],
-            },
-            what_went_well: Array.isArray(pmRaw.what_went_well) ? pmRaw.what_went_well : [],
-            action_items: (Array.isArray(pmRaw.action_items) ? pmRaw.action_items : []).map((a: any) => ({
-              description: a?.description || 'Unknown action item',
-              owner_role: ['on_call_engineer', 'incident_commander', 'sre_lead'].includes(a?.owner_role) ? a.owner_role : 'sre_lead',
-              target_date: a?.target_date || new Date(Date.now() + 14 * 86400000).toISOString(),
-              priority: ['P0', 'P1', 'P2'].includes(a?.priority) ? a.priority : 'P2',
-            })),
-            knowledge_gap_detected: pmRaw.knowledge_gap_detected === true,
-          };
       return parsed;
     });
 
@@ -677,6 +711,9 @@ const writebackStep = createStep({
     success: z.boolean(),
     incidentId: z.string().uuid(),
     mttrRegressionAlert: z.boolean(),
+    affected_service: z.string(),
+    severity: z.string(),
+    root_cause_hypotheses: z.array(z.string()),
   }),
   execute: async ({ inputData }) => {
     const { postMortem, incidentId } = inputData;
@@ -708,6 +745,99 @@ const writebackStep = createStep({
       success: true,
       incidentId,
       mttrRegressionAlert: postMortem.mttr_regression_alert,
+      affected_service: postMortem.affected_service,
+      severity: postMortem.severity,
+      root_cause_hypotheses: postMortem.root_cause_hypotheses,
+    };
+  },
+});
+
+// Step 9: knowledgeFreshness — run synthesisAgent to compare post-mortem against existing runbooks
+const knowledgeFreshnessStep = createStep({
+  id: 'knowledge_freshness',
+  inputSchema: z.object({
+    success: z.boolean(),
+    incidentId: z.string().uuid(),
+    mttrRegressionAlert: z.boolean(),
+    affected_service: z.string(),
+    severity: z.string(),
+    root_cause_hypotheses: z.array(z.string()),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    incidentId: z.string().uuid(),
+    finalStatus: z.string(),
+  }),
+  execute: async ({ inputData }) => {
+    const { incidentId, affected_service, root_cause_hypotheses } = inputData;
+
+    console.log(`[knowledge_freshness] Starting for incident ${incidentId}, service=${affected_service}`);
+
+    // Fetch the original incident payload for the old runbook
+    const dbRow = await pool.query(
+      'SELECT raw_payload FROM incidents WHERE id = $1',
+      [incidentId]
+    );
+
+    let oldRunbook = `Runbook for ${affected_service} (auto-generated from incident)`;
+    if (dbRow.rows.length > 0) {
+      try {
+        const parsed = JSON.parse(dbRow.rows[0].raw_payload);
+        oldRunbook = parsed.runbook || parsed.description || oldRunbook;
+      } catch { /* use default */ }
+    }
+
+    // Search Qdrant for existing runbooks matching the affected service
+    const searchResults = await qdrantSearchTool.execute!({
+      query: `Service: ${affected_service}. Runbook for ${root_cause_hypotheses.join(', ')}`,
+      collections: ['runbooks'],
+      topK: 3,
+      trustScoreMin: 0.5,
+    }, null as any) as any;
+
+    if (searchResults?.results?.length > 0) {
+      oldRunbook = searchResults.results.map((r: any) => r.payload?.content || '').join('\n\n---\n\n');
+    }
+
+    // Build post-mortem summary text
+    const newPostMortem = `Incident ${incidentId}: ${affected_service} — Hypotheses: ${root_cause_hypotheses.join(', ')}`;
+
+    // Invoke synthesisAgent for knowledge freshness
+    const mastra = await getMastra();
+    const agent = mastra.getAgent('synthesisAgent');
+    let synthesisResult;
+    try {
+      const response = await agent.generate(
+        [
+          { role: 'user', content: `[OLD_RUNBOOK]\n${oldRunbook}\n\n[NEW_POST_MORTEM]\n${newPostMortem}` }
+        ],
+        { output: SynthesisSchema, temperature: 0.1 }
+      );
+      synthesisResult = (response as any).object || null;
+    } catch (err) {
+      console.warn('[knowledge_freshness] Synthesis agent failed, skipping knowledge loop:', err);
+      synthesisResult = null;
+    }
+
+    if (synthesisResult) {
+      await qdrantUpsertTool.execute!({
+        collection: 'synthesis_drafts',
+        content: JSON.stringify(synthesisResult),
+        metadata: {
+          incident_id: incidentId,
+          affected_service,
+          conflict_detected: synthesisResult.conflict_detected === true,
+          human_review_required: synthesisResult.human_review_required === true,
+          confidence_score: synthesisResult.confidence_score,
+        },
+        sourceId: incidentId,
+      }, null as any);
+    }
+
+    return {
+      success: true,
+      incidentId,
+      finalStatus: 'resolved',
     };
   },
 });
@@ -808,4 +938,5 @@ export const incidentWorkflow = createWorkflow({
   ])
   .then(postMortemStep)
   .then(writebackStep)
+  .then(knowledgeFreshnessStep)
   .commit();

@@ -1,6 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-const DEMO_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImRlbW8taWMtMDAxIiwicm9sZSI6ImluY2lkZW50X2NvbW1hbmRlciIsImVtYWlsIjoiaWNAcnVuYm9vay1zZW50aW5lbC5pbyIsImlhdCI6MTc4Mzc2MDkzMiwiZXhwIjoxODE1Mjk2OTMyfQ.FwNfUW77RcHJevKTCcy7zJ0xnj_ycmsbC8N9JS5MzV0';
+const DEMO_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImRlbW8tdXNlciIsInJvbGUiOiJpbmNpZGVudF9jb21tYW5kZXIiLCJlbWFpbCI6ImljQHJ1bmJvb2stc2VudGluZWwuaW8iLCJpYXQiOjE3ODM4NDA0NTksImV4cCI6MTc4MzkyNjg1OX0.3O_53IuLj2FsWjK38nesrumrnZZ7qukVgnvE6Feas9E';
 
 async function apiFetch(path: string, options?: RequestInit) {
   // Let's generate a proper token with the actual JWT_SECRET for the API calls

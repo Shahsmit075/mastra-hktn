@@ -20,3 +20,5 @@ export const mastra = new Mastra({
   workflows: { 'incident-response': incidentWorkflow },
 });
 
+export async function getMastra() { return mastra; }
+

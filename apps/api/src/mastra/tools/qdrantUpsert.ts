@@ -1,13 +1,8 @@
 import { createTool } from '@mastra/core/tools';
-import { QdrantClient } from '@qdrant/js-client-rest';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { embedText } from '../../lib/embeddings';
-
-const qdrant = new QdrantClient({
-  url: process.env.QDRANT_URL || 'http://localhost:6333',
-  apiKey: process.env.QDRANT_API_KEY,
-});
+import { getQdrantClient } from '../../lib/qdrant';
 
 // Chunk text into overlapping segments (512 tokens ≈ 2048 chars, 50 token overlap ≈ 200 chars)
 function chunkText(text: string, chunkSize = 2048, overlap = 200): string[] {
@@ -36,31 +31,35 @@ export const qdrantUpsertTool = createTool({
   }),
   execute: async (inputData) => {
     const { collection, content, metadata, sourceId } = inputData;
+    const qdrant = getQdrantClient();
     const chunks = chunkText(content);
-    const pointIds: string[] = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-      const pointId = sourceId ? `${sourceId}-chunk-${i}` : uuidv4();
-      
-      const vector = await embedText(chunks[i]);
-
-      await qdrant.upsert(collection, {
-        wait: true,
-        points: [{
-          id: pointId,
-          vector: { dense: vector },
-          payload: {
-            ...metadata,
-            chunk_index: i,
-            chunk_count: chunks.length,
-            content: chunks[i],
-            indexed_at: new Date().toISOString(),
-          },
-        }],
-      });
-
-      pointIds.push(pointId);
+    // Batch embed all chunks in parallel — best-effort; skip if embedding unavailable
+    let vectors: number[][];
+    try {
+      vectors = await Promise.all(chunks.map(chunk => embedText(chunk)));
+    } catch (err) {
+      console.warn('[qdrantUpsert] Embedding unavailable, skipping upsert:', (err as Error).message);
+      return { upsertedCount: 0, pointIds: [] };
     }
+
+    const pointIds = chunks.map((_, i) => sourceId ? `${sourceId}-chunk-${i}` : uuidv4());
+
+    // Single batched upsert call instead of N sequential HTTP round-trips
+    await qdrant.upsert(collection, {
+      wait: true,
+      points: chunks.map((chunk, i) => ({
+        id: pointIds[i],
+        vector: { dense: vectors[i] },
+        payload: {
+          ...metadata,
+          chunk_index: i,
+          chunk_count: chunks.length,
+          content: chunk,
+          indexed_at: new Date().toISOString(),
+        },
+      })),
+    });
 
     return { upsertedCount: chunks.length, pointIds };
   },

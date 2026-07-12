@@ -2,7 +2,6 @@ import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
 import { primaryModel } from '../models';
 import { qdrantSearchTool } from '../tools/qdrantSearch';
-import { enkryptOutputGuardrailTool } from '../tools/enkryptGuardrail';
 
 // ─── Output Schema ─────────────────────────────────────────────────────────────
 
