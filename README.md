@@ -435,3 +435,25 @@ Answer = LLM( TopK( RRF( BM25, CosineSimilarity ) ) )
 6. HITL gate suspends — click **Approve** as Incident Commander
 7. PostMortemAgent generates blameless report + writes to Qdrant
 8. Knowledge Freshness Service flags stale 2022 runbook contradiction
+
+
+## Future Work
+ 
+### Kolmogorov-Arnold Attention Networks (KAAN)
+ 
+A proposed next-generation upgrade to the RemediationAgent and TriageAgent's attention layers, replacing standard linear Transformer projections with learnable spline functions for better handling of non-linear SRE telemetry.
+ 
+- **Mathematical shift** — Standard Transformers project queries/keys/values with fixed linear weight matrices (`W_Q`, `W_K`, `W_V`). KAAN replaces these with learnable 1D B-spline functions (`phi_ij`, `psi_ij`, `gamma_ij`) placed on each edge of the projection, following the Kolmogorov-Arnold representation theorem:
+```
+  Q_i = Σ over j=1..d of: phi_ij(x_j)
+  K_i = Σ over j=1..d of: psi_ij(x_j)
+  V_i = Σ over j=1..d of: gamma_ij(x_j)
+```
+ 
+  Attention scores and outputs are then computed from these spline-projected Q/K/V the same way as standard scaled dot-product attention.
+ 
+- **Non-linear alert triage** — SRE telemetry (CPU spikes, disk I/O bottleneck limits, memory page faults, network socket queue depth) often scales non-linearly near threshold boundaries. KAAN's learnable splines can model these non-linear relationships with higher sample efficiency than fixed linear projections, which matters for a system with limited historical incident data.
+- **Explainable attention mapping** — Because each projection path is a visualizable 1D spline rather than an opaque weight matrix, SREs can inspect exactly which telemetry value ranges activate a given query/key — turning attention weights into human-readable "this metric threshold triggered this response" graphs.
+- **Implementation blueprint** — Planned as a `KolmogorovArnoldAttention` PyTorch module (built on the `pykan` package) that drops in as a replacement for the Q/K/V projection layers in the TriageAgent's scoring head, without changing the surrounding Mastra workflow or agent interfaces.
+> Status: research proposal — not yet implemented. Tracked as a candidate enhancement for a future round, pending a benchmark against the current linear-projection TriageAgent on the confidence-gate accuracy metric.
+ 
