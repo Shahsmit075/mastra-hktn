@@ -469,6 +469,7 @@ flowchart TD
 ```
 
 ---
+<img width="1663" height="945" alt="image" src="https://github.com/user-attachments/assets/711eecef-71d2-4e95-a5bb-25a7c32553fb" />
 
 ## Diagram 7: OpenTelemetry Observability Flow
 
@@ -574,3 +575,4 @@ flowchart LR
     style LLM fill:#475569,stroke:#94A3B8,stroke-width:2px,color:#FFF
     style KFSLoop fill:#581C87,stroke:#A855F7,stroke-width:2px,color:#FFF
 ```
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/09d3dc67-b5a6-4e67-a505-57d952d80b7e" />
