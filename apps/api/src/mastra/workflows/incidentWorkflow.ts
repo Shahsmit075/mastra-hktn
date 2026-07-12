@@ -464,6 +464,24 @@ Generate a remediation plan as JSON matching RemediationSchema.
       } else {
         const planRawJson = extractJSON(remediationResponse.text || '{}');
         const planRaw = JSON.parse(planRawJson);
+
+        // Normalize common hallucinated key names before Zod validation
+        const keyMappings: Record<string, string> = {
+          remediation_steps: 'steps',
+          step: 'steps',
+          alternatives: 'alternative_approaches',
+          estimated_time: 'estimated_resolution_time',
+          summary: 'executive_summary',
+          risk: 'overall_risk',
+          plan_uuid: 'plan_id',
+        };
+        for (const [wrong, correct] of Object.entries(keyMappings)) {
+          if (wrong in planRaw && !(correct in planRaw)) {
+            (planRaw as any)[correct] = (planRaw as any)[wrong];
+            delete (planRaw as any)[wrong];
+          }
+        }
+
         if (!planRaw.steps) planRaw.steps = [];
         if (!planRaw.plan_id) planRaw.plan_id = uuidv4();
         const planResult = RemediationSchema.safeParse(planRaw);

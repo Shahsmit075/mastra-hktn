@@ -50,7 +50,7 @@ router.get('/:id', async (req, res) => {
       workflow: {
         steps: steps.rows,
         triageResult: triageStep?.result_json ?? null,
-        remediationPlan: remediationStep?.result_json ?? null,
+        remediationPlan: remediationStep?.result_json?.parsedPlan ?? remediationStep?.result_json ?? null,
         postMortem: postMortemStep?.result_json ?? null,
       },
       auditLog: audit.rows,

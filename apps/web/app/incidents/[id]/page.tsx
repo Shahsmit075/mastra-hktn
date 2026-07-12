@@ -138,7 +138,11 @@ export default function IncidentDetailPage() {
             {/* Remediation Plan */}
             {plan && (
               <div className="bg-surface border border-border-hairline rounded-xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-border-hairline bg-elevated flex items-center gap-3">
+                {(() => {
+                  const unwrappedPlan = plan.parsedPlan || plan;
+                  return (
+                    <>
+                      <div className="px-6 py-4 border-b border-border-hairline bg-elevated flex items-center gap-3">
                   <span className="w-2 h-2 bg-info rounded-full" />
                   <h2 className="text-sm font-bold text-text-primary uppercase tracking-[0.04em] font-mono">Proposed Remediation Plan</h2>
                 </div>
@@ -146,11 +150,11 @@ export default function IncidentDetailPage() {
                 <div className="p-6">
                   <div className="mb-6 p-4 bg-sunken rounded-lg border border-border-hairline">
                     <p className="text-xs font-bold text-text-muted uppercase tracking-[0.04em] font-mono mb-2">Executive Summary</p>
-                    <p className="text-sm text-text-primary leading-relaxed font-ui">{plan.executive_summary}</p>
+                    <p className="text-sm text-text-primary leading-relaxed font-ui">{unwrappedPlan.executive_summary}</p>
                   </div>
                   
                   <div className="space-y-4">
-                    {plan.steps?.map((step: any, i: number) => (
+                    {unwrappedPlan.steps?.map((step: any, i: number) => (
                       <div key={i} className="border border-border-hairline rounded-lg p-5 hover:border-border-strong transition-colors bg-surface shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-3">
@@ -186,6 +190,9 @@ export default function IncidentDetailPage() {
                     ))}
                   </div>
                 </div>
+                </>
+                );
+                })()}
               </div>
             )}
 

@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
@@ -15,6 +18,7 @@
     "demo:caching": "tsx scripts/demo-caching.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.11",
     "@ai-sdk/openai-compatible": "^3.0.7",
     "@mastra/core": "^1.50.1",
     "@mastra/pg": "^1.15.1",

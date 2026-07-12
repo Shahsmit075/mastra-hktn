@@ -81,33 +81,51 @@ Generate a structured remediation plan following these strict rules:
 Output: Valid JSON matching RemediationSchema. No markdown. No explanations outside JSON.
 Temperature: 0.1 — be deterministic, not creative. Prioritize proven, conservative approaches.
 
+The exact JSON key names MUST match the schema below. Common mistakes that cause rejection:
+  - Using "remediation_steps" instead of "steps"
+  - Using "step" instead of "steps"  
+  - Using "alternatives" instead of "alternative_approaches"
+  - Omitting "plan_id" (it is a required UUID)
+  - Omitting "estimated_resolution_time" (it is a required string)
+
 [PERSONALITY]
 Cautious, methodical. Prefer the approach that carries the lowest blast radius. 
 If no clear evidence supports an action, recommend it as optional or diagnostic only.
 
 [EXPERIMENT / FEW-SHOT EXAMPLES]
 
-Example 1 — Correct citation (use UUID from context):
+Complete RemediationSchema JSON structure (EXACT key names required):
 {
-  "step_number": 1,
-  "action": "kubectl patch deployment payments-db -p '{\\"spec\\":{\\"template\\":{\\"spec\\":{\\"containers\\":[{\\"name\\":\\"db\\",\\"resources\\":{\\"limits\\":{\\"memory\\":\\"4Gi\\"}}}]}}}}' ",
-  "description": "Apply 4Gi memory limit to payments-db deployment. Runbook RB-K8S-042 specifies this as the standard fix for OOMKilled pods. Historical incident INC-2024-0312 was resolved in 22 minutes using this exact command.",
-  "risk_level": "mitigating",
-  "evidence_refs": ["a3f1b2c4-1234-5678-abcd-ef0123456789"],
-  "estimated_impact": "Rolling restart of payments-db pods. Approximately 30-90 seconds of disruption per pod. During rolling restart, ~2% of in-flight payment requests may fail with a transient 503. Retry logic in the client will handle most failures.",
-  "requires_hitl": true,
-  "rollback_command": "kubectl rollout undo deployment/payments-db"
-}
-
-Example 2 — Diagnostic step (no hitl, no citation needed):
-{
-  "step_number": 1,
-  "action": "kubectl top pods -n production | grep payments",
-  "description": "Read-only check of current pod resource utilization. Confirms if memory pressure is the root cause before applying the fix.",
-  "risk_level": "diagnostic",
-  "evidence_refs": [],
-  "estimated_impact": "None — read-only command.",
-  "requires_hitl": false
+  "plan_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "reasoning": "The alert shows 8.2% error rate on payments-service... [full reasoning here]",
+  "executive_summary": "Scale up payments-db memory limit to 4Gi and increase connection pool to 40. Expected resolution within 30 minutes.",
+  "overall_risk": "mitigating",
+  "estimated_resolution_time": "15-30 minutes",
+  "steps": [
+    {
+      "step_number": 1,
+      "action": "kubectl top pods -n production | grep payments",
+      "description": "Read-only diagnostic check of current pod resource utilization.",
+      "risk_level": "diagnostic",
+      "evidence_refs": [],
+      "estimated_impact": "None — read-only command.",
+      "requires_hitl": false
+    },
+    {
+      "step_number": 2,
+      "action": "kubectl patch deployment payments-db -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"db\",\"resources\":{\"limits\":{\"memory\":\"4Gi\"}}}]}}}}'",
+      "description": "Apply 4Gi memory limit to payments-db. Runbook RB-K8S-042 specifies this as the standard fix for OOMKilled pods.",
+      "risk_level": "mitigating",
+      "evidence_refs": ["a3f1b2c4-1234-5678-abcd-ef0123456789"],
+      "estimated_impact": "Rolling restart of payments-db pods. ~30-90s disruption per pod. ~2% of in-flight requests may fail transiently.",
+      "requires_hitl": true,
+      "rollback_command": "kubectl rollout undo deployment/payments-db"
+    }
+  ],
+  "alternative_approaches": [
+    "Increase connection pool size via environment variable (less disruptive, requires app restart)",
+    "Add read replicas to offload traffic (longer to deploy, more resilient)"
+  ]
 }
 `.trim();
 
