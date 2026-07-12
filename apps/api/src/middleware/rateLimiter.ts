@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { redis } from '../lib/redis';
+import { redis } from '../lib/redis.js';
 
 const WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS = 500;

@@ -1,14 +1,14 @@
 import { createWorkflow, createStep } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { TriageSchema } from '../agents/triageAgent';
-import { RemediationSchema } from '../agents/remediationAgent';
-import { PostMortemSchema } from '../agents/postMortemAgent';
-import { enkryptInputGuardrailTool, enkryptOutputGuardrailTool } from '../tools/enkryptGuardrail';
-import { qdrantSearchTool } from '../tools/qdrantSearch';
-import { qdrantUpsertTool } from '../tools/qdrantUpsert';
-import { SynthesisSchema } from '../agents/synthesisAgent';
-import { semanticCacheCheckTool, semanticCacheWriteTool } from '../tools/semanticCache';
-import { pool } from '../../lib/db';
+import { TriageSchema } from '../agents/triageAgent.js';
+import { RemediationSchema } from '../agents/remediationAgent.js';
+import { PostMortemSchema } from '../agents/postMortemAgent.js';
+import { enkryptInputGuardrailTool, enkryptOutputGuardrailTool } from '../tools/enkryptGuardrail.js';
+import { qdrantSearchTool } from '../tools/qdrantSearch.js';
+import { qdrantUpsertTool } from '../tools/qdrantUpsert.js';
+import { SynthesisSchema } from '../agents/synthesisAgent.js';
+import { semanticCacheCheckTool, semanticCacheWriteTool } from '../tools/semanticCache.js';
+import { pool } from '../../lib/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── JSON Extraction Helper (fallback only) ────────────────────────────────────

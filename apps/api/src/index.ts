@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import './lib/otel'; // MUST be first — initializes OTel before any imports
-import { createApp } from './server';
+import './lib/otel.js'; // MUST be first — initializes OTel before any imports
+import { createApp } from './server.js';
 
 // Global error handlers — prevent crash on unhandled rejections
 process.on('unhandledRejection', (reason) => {

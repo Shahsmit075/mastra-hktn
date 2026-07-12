@@ -3,13 +3,13 @@ import { PostgresStore } from '@mastra/pg';
 import type { AnyWorkflow } from '@mastra/core/workflows';
 
 // Import providers and models from extracted models.ts
-export * from './models';
+export * from './models.js';
 
-import { triageAgent } from './agents/triageAgent';
-import { remediationAgent } from './agents/remediationAgent';
-import { postMortemAgent } from './agents/postMortemAgent';
-import { synthesisAgent } from './agents/synthesisAgent';
-import { incidentWorkflow } from './workflows/incidentWorkflow';
+import { triageAgent } from './agents/triageAgent.js';
+import { remediationAgent } from './agents/remediationAgent.js';
+import { postMortemAgent } from './agents/postMortemAgent.js';
+import { synthesisAgent } from './agents/synthesisAgent.js';
+import { incidentWorkflow } from './workflows/incidentWorkflow.js';
 
 export const mastra = new Mastra({
   storage: new PostgresStore({

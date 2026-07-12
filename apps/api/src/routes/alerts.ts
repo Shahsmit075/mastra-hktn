@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { pool } from '../lib/db';
-import { mastra } from '../mastra/index';
+import { pool } from '../lib/db.js';
+import { mastra } from '../mastra/index.js';
 
 const router = Router();
 

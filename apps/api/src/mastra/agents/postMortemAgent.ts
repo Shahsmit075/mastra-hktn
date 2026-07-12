@@ -1,8 +1,8 @@
 import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
-import { primaryModel } from '../models';
-import { qdrantSearchTool } from '../tools/qdrantSearch';
-import { qdrantUpsertTool } from '../tools/qdrantUpsert';
+import { primaryModel } from '../models.js';
+import { qdrantSearchTool } from '../tools/qdrantSearch.js';
+import { qdrantUpsertTool } from '../tools/qdrantUpsert.js';
 
 // ─── Output Schema ─────────────────────────────────────────────────────────────
 

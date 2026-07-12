@@ -1,18 +1,18 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { correlationIdMiddleware } from './middleware/correlationId';
-import { rateLimiterMiddleware } from './middleware/rateLimiter';
-import { authMiddleware } from './middleware/auth';
-import { errorHandler } from './middleware/errorHandler';
-import alertRoutes from './routes/alerts';
-import incidentRoutes from './routes/incidents';
-import approveRoutes from './routes/approve';
-import analyticsRoutes from './routes/analytics';
-import knowledgeRoutes from './routes/knowledge';
-import demoRoutes from './routes/demo';
-import { checkDbHealth } from './lib/db';
-import { checkRedisHealth } from './lib/redis';
+import { correlationIdMiddleware } from './middleware/correlationId.js';
+import { rateLimiterMiddleware } from './middleware/rateLimiter.js';
+import { authMiddleware } from './middleware/auth.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import alertRoutes from './routes/alerts.js';
+import incidentRoutes from './routes/incidents.js';
+import approveRoutes from './routes/approve.js';
+import analyticsRoutes from './routes/analytics.js';
+import knowledgeRoutes from './routes/knowledge.js';
+import demoRoutes from './routes/demo.js';
+import { checkDbHealth } from './lib/db.js';
+import { checkRedisHealth } from './lib/redis.js';
 
 export function createApp() {
   const app = express();

@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { embedText } from '../../lib/embeddings';
-import { getQdrantClient } from '../../lib/qdrant';
+import { embedText } from '../../lib/embeddings.js';
+import { getQdrantClient } from '../../lib/qdrant.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const CACHE_COLLECTION = 'semantic_cache';

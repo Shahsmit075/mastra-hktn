@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { embedText } from '../../lib/embeddings';
-import { getQdrantClient } from '../../lib/qdrant';
+import { embedText } from '../../lib/embeddings.js';
+import { getQdrantClient } from '../../lib/qdrant.js';
 
 // Chunk text into overlapping segments (512 tokens ≈ 2048 chars, 50 token overlap ≈ 200 chars)
 function chunkText(text: string, chunkSize = 2048, overlap = 200): string[] {

@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { embedText } from '../../lib/embeddings';
-import { getQdrantClient } from '../../lib/qdrant';
+import { embedText } from '../../lib/embeddings.js';
+import { getQdrantClient } from '../../lib/qdrant.js';
 
 // ─── Simple BM25 Sparse Encoder ──────────────────────────────────────────────
 // Tokenizes text and builds a sparse vector using term frequencies.

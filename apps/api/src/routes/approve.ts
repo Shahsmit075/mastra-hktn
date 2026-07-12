@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireRole } from '../middleware/auth';
-import { pool } from '../lib/db';
-import { mastra } from '../mastra/index';
+import { requireRole } from '../middleware/auth.js';
+import { pool } from '../lib/db.js';
+import { mastra } from '../mastra/index.js';
 
 const router = Router();
 

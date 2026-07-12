@@ -1,6 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 import { z } from 'zod';
-import { primaryModel } from '../models';
+import { primaryModel } from '../models.js';
 
 // ─── Output Schema ─────────────────────────────────────────────────────────────
 

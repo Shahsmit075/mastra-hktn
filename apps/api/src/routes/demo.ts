@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { getMastra } from '../mastra';
-import { SynthesisSchema } from '../mastra/agents/synthesisAgent';
-import { enkryptInputGuardrailTool } from '../mastra/tools/enkryptGuardrail';
+import { getMastra } from '../mastra/index.js';
+import { SynthesisSchema } from '../mastra/agents/synthesisAgent.js';
+import { enkryptInputGuardrailTool } from '../mastra/tools/enkryptGuardrail.js';
 import { v4 as uuidv4 } from 'uuid';
-import { pool } from '../lib/db';
+import { pool } from '../lib/db.js';
 
 const router = Router();
 

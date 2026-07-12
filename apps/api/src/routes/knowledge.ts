@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { requireRole } from '../middleware/auth';
+import { requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
