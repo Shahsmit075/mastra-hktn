@@ -26,7 +26,7 @@ function extractJSON(text: string): string {
 let _mastra: any = null;
 async function getMastra() {
   if (!_mastra) {
-    const mod = await import('../index');
+    const mod = await import('../index.js');
     _mastra = mod.mastra;
   }
   return _mastra;
