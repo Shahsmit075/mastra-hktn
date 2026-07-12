@@ -6,6 +6,7 @@ import { PostMortemSchema } from '../agents/postMortemAgent';
 import { enkryptInputGuardrailTool, enkryptOutputGuardrailTool } from '../tools/enkryptGuardrail';
 import { qdrantSearchTool } from '../tools/qdrantSearch';
 import { qdrantUpsertTool } from '../tools/qdrantUpsert';
+import { semanticCacheCheckTool, semanticCacheWriteTool } from '../tools/semanticCache';
 import { pool } from '../../lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -124,6 +125,76 @@ const sanitizeStep = createStep({
   },
 });
 
+// Step 1.5: semanticCacheCheck — short-circuit LLM if exact alert was seen recently
+const semanticCacheCheckStep = createStep({
+  id: 'semantic-cache-check',
+  inputSchema: z.object({
+    cleanedPayload: z.string().optional(),
+    incidentId: z.string().uuid().optional(),
+    correlationId: z.string().optional(),
+    traceparent: z.string().nullable().optional(),
+    'pass-through': z.any().optional(),
+  }).passthrough(),
+  outputSchema: z.object({
+    cacheHit: z.boolean(),
+    cachedPlanId: z.string().optional(),
+    cachedPlan: z.any().optional(),
+    similarityScore: z.number().optional(),
+    cleanedPayload: z.string().optional(),
+    incidentId: z.string().uuid().optional(),
+    correlationId: z.string().optional(),
+    traceparent: z.string().nullable().optional(),
+  }),
+  execute: async ({ inputData }) => {
+    const data = (inputData as any)['pass-through'] || inputData;
+    const { cleanedPayload, incidentId, correlationId, traceparent } = data;
+
+    if (!cleanedPayload) return { cacheHit: false, ...data };
+
+    const cacheResult = await getOrExecuteStep(incidentId, 'semantic-cache-check', traceparent, async () => {
+      const res = await semanticCacheCheckTool.execute!({
+        payload: cleanedPayload,
+      }, null as any) as any;
+      return res;
+    });
+
+    if (cacheResult.cacheHit) {
+      console.log(`[semantic_cache] ⚡ Cache HIT for incident ${incidentId}! Score: ${cacheResult.similarityScore}`);
+      await pool.query(
+        `UPDATE incidents SET status = 'awaiting_approval' WHERE id = $1`,
+        [incidentId]
+      );
+    } else {
+      console.log(`[semantic_cache] Cache MISS for incident ${incidentId}`);
+    }
+
+    return { ...cacheResult, cleanedPayload, incidentId, correlationId, traceparent };
+  },
+});
+
+const semanticCacheWriteStep = createStep({
+  id: 'semantic-cache-write',
+  inputSchema: z.any(),
+  outputSchema: z.any(),
+  execute: async ({ inputData }) => {
+    const data = (inputData as any)['pass-through'] || inputData;
+    const { cleanedPayload, remediationPlan, incidentId, traceparent } = data;
+
+    if (cleanedPayload && remediationPlan) {
+      await getOrExecuteStep(incidentId, 'semantic-cache-write', traceparent, async () => {
+        const res = await semanticCacheWriteTool.execute!({
+          payload: cleanedPayload,
+          remediationPlan: remediationPlan,
+        }, null as any) as any;
+        console.log(`[semantic_cache] 💾 Wrote plan for incident ${incidentId} to cache.`);
+        return res;
+      });
+    }
+
+    return data;
+  },
+});
+
 // Step 2: triage — TriageAgent runs
 const triageStep = createStep({
   id: 'triage',
@@ -143,7 +214,12 @@ const triageStep = createStep({
   }),
   execute: async ({ inputData }) => {
     const data = (inputData as any)['pass-through'] || inputData;
-    const { cleanedPayload, incidentId, correlationId, traceparent, promptHash } = data;
+    const { cleanedPayload, incidentId, correlationId, traceparent, promptHash, cacheHit, cachedPlan } = data;
+
+    if (cacheHit) {
+      // Bypass if cached
+      return { ...data, triageResult: {} as any };
+    }
 
     const triageResult = await getOrExecuteStep(incidentId, 'triage', traceparent, async () => {
       const mastra = await getMastra();
@@ -237,6 +313,12 @@ const confidenceGateStep = createStep({
   }),
   execute: async ({ inputData }) => {
     const { triageResult, incidentId, correlationId, traceparent } = inputData;
+    const cacheHit = (inputData as any).cacheHit;
+    
+    if (cacheHit) {
+      return { passed: true, ...inputData };
+    }
+
     const passed = triageResult.confidence_score >= 0.85;
 
     if (!passed) {
@@ -276,7 +358,11 @@ const retrievalStep = createStep({
   }),
   execute: async ({ inputData }) => {
     const data = (inputData as any)['confidence-pass'] || inputData;
-    const { triageResult, incidentId, correlationId, traceparent } = data;
+    const { triageResult, incidentId, correlationId, traceparent, cacheHit } = data;
+
+    if (cacheHit) {
+      return { ...data, retrievedContext: [], contextRefs: [] };
+    }
 
     const searchResults = await getOrExecuteStep(incidentId, 'retrieval', traceparent, async () => {
       const query = `${triageResult.affected_service} ${triageResult.severity} incident`;
@@ -323,6 +409,19 @@ const remediationStep = createStep({
   }),
   execute: async ({ inputData }) => {
     const { retrievedContext, contextRefs, triageResult, incidentId, correlationId, traceparent } = inputData;
+    const cacheHit = (inputData as any).cacheHit;
+    const cachedPlan = (inputData as any).cachedPlan;
+
+    if (cacheHit) {
+      return {
+        remediationPlan: cachedPlan,
+        contextRefs: [],
+        incidentId,
+        correlationId,
+        traceparent,
+        enkryptPassed: true,
+      };
+    }
 
     const remediationPlan = await getOrExecuteStep(incidentId, 'remediation', traceparent, async () => {
       const mastra = await getMastra();
@@ -636,12 +735,10 @@ export const incidentWorkflow = createWorkflow({
      createStep({
         id: 'blocked-halt',
         inputSchema: z.any(),
-        outputSchema: z.object({ success: z.boolean(), incidentId: z.string(), finalStatus: z.string() }),
-        execute: async ({ inputData }) => ({
-          success: false,
-          incidentId: inputData.incidentId,
-          finalStatus: 'blocked_by_guardrail',
-        }),
+        outputSchema: z.any(),
+        execute: async ({ inputData }) => {
+          throw new Error('Workflow blocked by guardrail: ' + inputData.blockReason);
+        },
       })
     ],
     // Branch B: Safe — continue to triage
@@ -654,6 +751,7 @@ export const incidentWorkflow = createWorkflow({
      })
     ],
   ])
+  .then(semanticCacheCheckStep)
   .then(triageStep)
   .then(confidenceGateStep)
   .branch([
@@ -682,6 +780,7 @@ export const incidentWorkflow = createWorkflow({
   ])
   .then(retrievalStep)
   .then(remediationStep)
+  .then(semanticCacheWriteStep)
   .then(hitlGateStep)
   .branch([
     // IC rejected — stop

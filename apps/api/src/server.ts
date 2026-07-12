@@ -10,6 +10,7 @@ import incidentRoutes from './routes/incidents';
 import approveRoutes from './routes/approve';
 import analyticsRoutes from './routes/analytics';
 import knowledgeRoutes from './routes/knowledge';
+import demoRoutes from './routes/demo';
 import { checkDbHealth } from './lib/db';
 import { checkRedisHealth } from './lib/redis';
 
@@ -56,6 +57,9 @@ export function createApp() {
       },
     });
   });
+
+  // ─── Unprotected routes (Showcase Demo) ──────────────────────────────────
+  app.use('/v1/demo', demoRoutes);
 
   // ─── Protected routes ─────────────────────────────────────────────────────
   app.use('/v1', authMiddleware);

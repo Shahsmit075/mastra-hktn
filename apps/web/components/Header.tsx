@@ -29,6 +29,11 @@ export function Header() {
             <Link href="/analytics" className="hover:text-foreground transition-colors">
               Analytics
             </Link>
+            <div className="w-px h-4 bg-border mx-2"></div>
+            <Link href="/showcase" className="hover:text-amber transition-colors flex items-center gap-1 font-semibold text-amber">
+              <span className="text-lg leading-none">✨</span>
+              Demo Showcase
+            </Link>
           </nav>
         </div>
         

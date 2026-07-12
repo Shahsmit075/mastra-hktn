@@ -28,6 +28,10 @@ const COLLECTIONS = [
     name: 'synthesis_drafts',
     description: 'KFS-generated reconciled documents pending SRE review',
   },
+  {
+    name: 'semantic_cache',
+    description: 'Cache of recent incident payloads and their mitigation plans',
+  },
 ];
 
 async function createCollections() {

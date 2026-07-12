@@ -83,9 +83,8 @@ async function callEnkryptGuardrail(
     });
 
     if (!response.ok) {
-      console.error(`Enkrypt API error: ${response.status}`);
-      // Fail open for availability — log but proceed
-      return { action: 'PASS', cleanedText: text, detections: {}, promptHash: hashPrompt(text), blocked: false };
+      console.error(`Enkrypt API error: ${response.status} - Falling back to local guardrail.`);
+      return localFallbackGuardrail(text, mode, contextRefs);
     }
 
     const data = await response.json() as {
@@ -155,18 +154,12 @@ async function callEnkryptGuardrail(
 
   } catch (err: any) {
     if (err.name === 'TimeoutError') {
-      console.warn('Enkrypt API timeout — failing open');
+      console.warn('Enkrypt API timeout — falling back to local guardrails');
     } else {
-      console.error('Enkrypt API call failed:', err.message);
+      console.error('Enkrypt API call failed:', err.message, '— falling back to local guardrails');
     }
-    // Fail open: never block incident response due to guardrail unavailability
-    return {
-      action: 'PASS',
-      cleanedText: text,
-      detections: {},
-      promptHash: hashPrompt(text),
-      blocked: false,
-    };
+    // Failover: run local guardrails if API is unreachable
+    return localFallbackGuardrail(text, mode, contextRefs);
   }
 }
 
@@ -182,7 +175,7 @@ function localFallbackGuardrail(
 
   // Basic injection detection
   const injectionPatterns = [
-    /ignore (previous|all) instructions/i,
+    /ignore (all )?(previous )?instructions/i,
     /you are now/i,
     /forget your (system|previous)/i,
     /\[SYSTEM\]/i,

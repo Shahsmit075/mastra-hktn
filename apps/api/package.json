@@ -9,7 +9,10 @@
     "start": "node dist/index.js",
     "migrate": "tsx scripts/migrate-db.ts",
     "seed": "tsx scripts/seed-qdrant.ts",
-    "smoke-test": "tsx scripts/test-workflow.ts"
+    "smoke-test": "tsx scripts/test-workflow.ts",
+    "demo:gardener": "tsx scripts/demo-knowledge-gardener.ts",
+    "demo:red-team": "tsx scripts/simulate-attack.ts",
+    "demo:caching": "tsx scripts/demo-caching.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "latest",

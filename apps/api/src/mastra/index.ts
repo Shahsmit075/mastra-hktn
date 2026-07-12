@@ -8,6 +8,7 @@ export * from './models';
 import { triageAgent } from './agents/triageAgent';
 import { remediationAgent } from './agents/remediationAgent';
 import { postMortemAgent } from './agents/postMortemAgent';
+import { synthesisAgent } from './agents/synthesisAgent';
 import { incidentWorkflow } from './workflows/incidentWorkflow';
 
 export const mastra = new Mastra({
@@ -15,7 +16,7 @@ export const mastra = new Mastra({
     id: 'runbook-sentinel',
     connectionString: process.env.DATABASE_URL || 'postgresql://sentinel:sentinel_dev_pass@localhost:5432/runbook_sentinel',
   }),
-  agents: { triageAgent, remediationAgent, postMortemAgent },
+  agents: { triageAgent, remediationAgent, postMortemAgent, synthesisAgent },
   workflows: { 'incident-response': incidentWorkflow },
 });
 
