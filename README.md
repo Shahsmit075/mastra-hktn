@@ -118,7 +118,398 @@ curl -X POST http://localhost:3001/v1/incidents \
 7. **Blameless Post-Mortems** — Google SRE standard reports with MTTR regression alerts and automated Qdrant writeback.
 
 ---
+# 📐 Retrieval & Ranking Mathematics
 
+---
+
+## 1. BM25 (Sparse Retrieval)
+
+\[
+\text{BM25}(q,D)=
+\sum_{t\in q}
+IDF(t)
+\times
+\frac{
+f(t,D)(k_1+1)
+}{
+f(t,D)+k_1\left(1-b+b\frac{|D|}{avgdl}\right)
+}
+\]
+
+### Parameters
+
+| Symbol | Description |
+|---------|-------------|
+| \(f(t,D)\) | Term frequency |
+| \(k_1\) | Term frequency scaling (1.2–2.0) |
+| \(b\) | Length normalization (0.75) |
+| \(|D|\) | Document length |
+| \(avgdl\) | Average document length |
+
+---
+
+## 2. Inverse Document Frequency (IDF)
+
+\[
+IDF(t)=
+\log\left(
+\frac{N-n_t+0.5}
+{n_t+0.5}+1
+\right)
+\]
+
+| Symbol | Description |
+|---------|-------------|
+| \(N\) | Total documents |
+| \(n_t\) | Documents containing term |
+
+---
+
+# 🧠 OpenAI Embeddings
+
+Each document is converted into a **1536-dimensional dense vector** using **text-embedding-3-large**.
+
+\[
+Document
+\rightarrow
+EmbeddingModel
+\rightarrow
+\vec{d}\in\mathbb{R}^{1536}
+\]
+
+Similarly,
+
+\[
+Query
+\rightarrow
+EmbeddingModel
+\rightarrow
+\vec{q}\in\mathbb{R}^{1536}
+\]
+
+---
+
+# 📏 Cosine Similarity
+
+Used by Qdrant for Dense Vector Search.
+
+\[
+Cosine(\vec q,\vec d)=
+\frac{\vec q\cdot\vec d}
+{||\vec q||\times||\vec d||}
+\]
+
+Higher score ⇒ Higher semantic similarity.
+
+---
+
+# 🗂️ Qdrant Hybrid Search
+
+Qdrant performs parallel retrieval.
+
+\[
+Query
+\rightarrow
+\begin{cases}
+Dense\ Search\\
+Sparse\ Search
+\end{cases}
+\]
+
+Result Sets
+
+\[
+Dense=
+\{d_1,d_2,...,d_k\}
+\]
+
+\[
+Sparse=
+\{s_1,s_2,...,s_k\}
+\]
+
+---
+
+# 🔀 Reciprocal Rank Fusion (RRF)
+
+Qdrant merges Dense and Sparse results using RRF.
+
+\[
+RRF(d)
+=
+\sum_i
+\frac{1}
+{k+r_i(d)}
+\]
+
+Where
+
+- \(k=60\)
+- \(r_i(d)\) = Rank returned by retriever *i*
+
+---
+
+# ⚖️ Hybrid Score
+
+Weighted fusion of BM25 and Dense Search.
+
+\[
+Score
+=
+\alpha\times BM25
++
+(1-\alpha)\times CosineSimilarity
+\]
+
+Example
+
+\[
+\alpha=0.4
+\]
+
+\[
+Dense=0.6
+\]
+
+---
+
+# 🧩 Context Ranking
+
+Top documents are sorted by
+
+\[
+FinalRank=
+RRF
+\times
+TrustScore
+\times
+TemporalWeight
+\]
+
+where
+
+\[
+TemporalWeight=
+1+\lambda e^{-t}
+\]
+
+---
+
+# 🧠 Context Window
+
+Top-K retrieved chunks
+
+\[
+Context=
+Top_k(Documents)
+\]
+
+\[
+k=8\sim12
+\]
+
+---
+
+# ✂️ Chunking
+
+Document
+
+\[
+D
+=
+\{c_1,c_2,...,c_n\}
+\]
+
+Typical Configuration
+
+```
+Chunk Size     = 512 Tokens
+Chunk Overlap  = 50 Tokens
+```
+
+---
+
+# ☁️ Qdrant Vector Index
+
+```
+Vector Size : 1536
+
+Distance Metric : Cosine
+
+Index : HNSW
+
+Payload : Metadata + UUID + Trust Score
+```
+
+---
+
+# 🌐 HNSW Search
+
+Approximate Nearest Neighbor
+
+Graph Complexity
+
+\[
+O(M\times N)
+\]
+
+Search Complexity
+
+\[
+O(logN)
+\]
+
+where
+
+- M = Graph Connectivity
+- N = Number of Vectors
+
+---
+
+# 🧮 Confidence Score
+
+\[
+Confidence=
+\frac{
+RelevantChunks
+}
+{
+RetrievedChunks
+}
+\]
+
+Example
+
+```
+Retrieved = 20
+
+Relevant = 18
+
+Confidence = 0.90
+```
+
+---
+
+# 🎯 Similarity Threshold
+
+```
+Cosine ≥ 0.85
+      ↓
+Highly Relevant
+
+0.70–0.85
+      ↓
+Relevant
+
+<0.70
+      ↓
+Discard
+```
+
+---
+
+# 🔄 Mastra Workflow State
+
+Workflow
+
+\[
+W=
+\{S_1,S_2,...,S_n\}
+\]
+
+State Transition
+
+\[
+S_{i+1}=f(S_i,Input)
+\]
+
+Checkpoint
+
+\[
+Checkpoint=
+(State,
+Context,
+Memory,
+TraceID)
+\]
+
+Resume
+
+\[
+WorkflowResume=
+Checkpoint
+\rightarrow
+NextState
+\]
+
+---
+
+# 📝 Memory Update
+
+\[
+Memory_{new}
+=
+Memory_{old}
++
+NewKnowledge
+\]
+
+---
+
+# 🔍 Retrieval Pipeline
+
+\[
+Query
+\rightarrow
+Embedding
+\rightarrow
+Qdrant
+\rightarrow
+HybridSearch
+\rightarrow
+RRF
+\rightarrow
+TopK
+\rightarrow
+LLM
+\]
+
+---
+
+# 📦 End-to-End Retrieval Equation
+
+\[
+Answer
+=
+LLM
+\left(
+TopK
+\left(
+RRF
+\left(
+BM25,
+CosineSimilarity
+\right)
+\right)
+\right)
+\]
+
+---
+
+# 🚀 Technology Stack (Mathematical View)
+
+| Component | Formula / Algorithm |
+|-----------|----------------------|
+| BM25 | Probabilistic Ranking Function |
+| OpenAI Embeddings | \(x \rightarrow \mathbb{R}^{1536}\) |
+| Qdrant | Cosine Similarity + HNSW |
+| Hybrid Search | Sparse + Dense Retrieval |
+| Rank Fusion | Reciprocal Rank Fusion (RRF) |
+| Chunking | 512 Tokens + 50 Overlap |
+| Retrieval | Top-K Similarity Search |
+| Mastra | Workflow State Transition \(S_{i+1}=f(S_i)\) |
+| Memory | \(M_{new}=M_{old}+Knowledge\) |
+| Final Answer | \(LLM(RRF(BM25+Dense))\) |
 ## API Endpoints
 
 | Method | Endpoint | Role Required | Description |
