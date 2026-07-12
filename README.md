@@ -118,74 +118,51 @@ curl -X POST http://localhost:3001/v1/incidents \
 7. **Blameless Post-Mortems** — Google SRE standard reports with MTTR regression alerts and automated Qdrant writeback.
 
 ---
+
 # 📐 Retrieval & Ranking Mathematics
 
 ---
 
 ## 1. BM25 (Sparse Retrieval)
 
-\[
-\text{BM25}(q,D)=
-\sum_{t\in q}
-IDF(t)
-\times
-\frac{
-f(t,D)(k_1+1)
-}{
-f(t,D)+k_1\left(1-b+b\frac{|D|}{avgdl}\right)
-}
-\]
+```
+BM25(q, D) = Σ over t in q of:
+    IDF(t) * [ f(t,D) * (k1 + 1) ] / [ f(t,D) + k1 * (1 - b + b * |D| / avgdl) ]
+```
 
 ### Parameters
 
 | Symbol | Description |
 |---------|-------------|
-| \(f(t,D)\) | Term frequency |
-| \(k_1\) | Term frequency scaling (1.2–2.0) |
-| \(b\) | Length normalization (0.75) |
-| \(|D|\) | Document length |
-| \(avgdl\) | Average document length |
+| `f(t,D)` | Term frequency |
+| `k1` | Term frequency scaling (1.2–2.0) |
+| `b` | Length normalization (0.75) |
+| `\|D\|` | Document length |
+| `avgdl` | Average document length |
 
 ---
 
 ## 2. Inverse Document Frequency (IDF)
 
-\[
-IDF(t)=
-\log\left(
-\frac{N-n_t+0.5}
-{n_t+0.5}+1
-\right)
-\]
+```
+IDF(t) = log( (N - n_t + 0.5) / (n_t + 0.5) + 1 )
+```
 
 | Symbol | Description |
 |---------|-------------|
-| \(N\) | Total documents |
-| \(n_t\) | Documents containing term |
+| `N` | Total documents |
+| `n_t` | Documents containing term |
 
 ---
 
-# 🧠 OpenAI Embeddings
+# 🧠 Dense Embeddings
 
-Each document is converted into a **1536-dimensional dense vector** using **text-embedding-3-large**.
+Each document is converted into a **768-dimensional dense vector** using a sentence-embedding model (`BAAI/bge-base-en-v1.5`).
 
-\[
-Document
-\rightarrow
-EmbeddingModel
-\rightarrow
-\vec{d}\in\mathbb{R}^{1536}
-\]
-
-Similarly,
-
-\[
-Query
-\rightarrow
-EmbeddingModel
-\rightarrow
-\vec{q}\in\mathbb{R}^{1536}
-\]
+```
+Document -> EmbeddingModel -> d (vector in R^768)
+Query    -> EmbeddingModel -> q (vector in R^768)
+```
 
 ---
 
@@ -193,11 +170,9 @@ EmbeddingModel
 
 Used by Qdrant for Dense Vector Search.
 
-\[
-Cosine(\vec q,\vec d)=
-\frac{\vec q\cdot\vec d}
-{||\vec q||\times||\vec d||}
-\]
+```
+Cosine(q, d) = (q · d) / (||q|| * ||d||)
+```
 
 Higher score ⇒ Higher semantic similarity.
 
@@ -207,26 +182,17 @@ Higher score ⇒ Higher semantic similarity.
 
 Qdrant performs parallel retrieval.
 
-\[
-Query
-\rightarrow
-\begin{cases}
-Dense\ Search\\
-Sparse\ Search
-\end{cases}
-\]
+```
+Query -> Dense Search
+      -> Sparse Search
+```
 
 Result Sets
 
-\[
-Dense=
-\{d_1,d_2,...,d_k\}
-\]
-
-\[
-Sparse=
-\{s_1,s_2,...,s_k\}
-\]
+```
+Dense  = { d1, d2, ..., dk }
+Sparse = { s1, s2, ..., sk }
+```
 
 ---
 
@@ -234,18 +200,14 @@ Sparse=
 
 Qdrant merges Dense and Sparse results using RRF.
 
-\[
-RRF(d)
-=
-\sum_i
-\frac{1}
-{k+r_i(d)}
-\]
+```
+RRF(d) = Σ over retrievers i of: 1 / (k + r_i(d))
+```
 
 Where
 
-- \(k=60\)
-- \(r_i(d)\) = Rank returned by retriever *i*
+- `k = 60`
+- `r_i(d)` = Rank returned by retriever *i*
 
 ---
 
@@ -253,23 +215,11 @@ Where
 
 Weighted fusion of BM25 and Dense Search.
 
-\[
-Score
-=
-\alpha\times BM25
-+
-(1-\alpha)\times CosineSimilarity
-\]
+```
+Score = alpha * BM25 + (1 - alpha) * CosineSimilarity
+```
 
-Example
-
-\[
-\alpha=0.4
-\]
-
-\[
-Dense=0.6
-\]
+Example: `alpha = 0.4`, `1 - alpha = 0.6`
 
 ---
 
@@ -277,21 +227,15 @@ Dense=0.6
 
 Top documents are sorted by
 
-\[
-FinalRank=
-RRF
-\times
-TrustScore
-\times
-TemporalWeight
-\]
+```
+FinalRank = RRF * TrustScore * TemporalWeight
+```
 
 where
 
-\[
-TemporalWeight=
-1+\lambda e^{-t}
-\]
+```
+TemporalWeight = 1 + lambda * e^(-t)
+```
 
 ---
 
@@ -299,14 +243,10 @@ TemporalWeight=
 
 Top-K retrieved chunks
 
-\[
-Context=
-Top_k(Documents)
-\]
-
-\[
-k=8\sim12
-\]
+```
+Context = Top_k(Documents)
+k = 8 to 12
+```
 
 ---
 
@@ -314,11 +254,9 @@ k=8\sim12
 
 Document
 
-\[
-D
-=
-\{c_1,c_2,...,c_n\}
-\]
+```
+D = { c1, c2, ..., cn }
+```
 
 Typical Configuration
 
@@ -332,7 +270,7 @@ Chunk Overlap  = 50 Tokens
 # ☁️ Qdrant Vector Index
 
 ```
-Vector Size : 1536
+Vector Size : 768
 
 Distance Metric : Cosine
 
@@ -347,17 +285,10 @@ Payload : Metadata + UUID + Trust Score
 
 Approximate Nearest Neighbor
 
-Graph Complexity
-
-\[
-O(M\times N)
-\]
-
-Search Complexity
-
-\[
-O(logN)
-\]
+```
+Graph Complexity  : O(M * N)
+Search Complexity : O(log N)
+```
 
 where
 
@@ -368,15 +299,9 @@ where
 
 # 🧮 Confidence Score
 
-\[
-Confidence=
-\frac{
-RelevantChunks
-}
-{
-RetrievedChunks
-}
-\]
+```
+Confidence = RelevantChunks / RetrievedChunks
+```
 
 Example
 
@@ -412,87 +337,51 @@ Discard
 
 Workflow
 
-\[
-W=
-\{S_1,S_2,...,S_n\}
-\]
+```
+W = { S1, S2, ..., Sn }
+```
 
 State Transition
 
-\[
-S_{i+1}=f(S_i,Input)
-\]
+```
+S(i+1) = f(S_i, Input)
+```
 
 Checkpoint
 
-\[
-Checkpoint=
-(State,
-Context,
-Memory,
-TraceID)
-\]
+```
+Checkpoint = (State, Context, Memory, TraceID)
+```
 
 Resume
 
-\[
-WorkflowResume=
-Checkpoint
-\rightarrow
-NextState
-\]
+```
+WorkflowResume = Checkpoint -> NextState
+```
 
 ---
 
 # 📝 Memory Update
 
-\[
-Memory_{new}
-=
-Memory_{old}
-+
-NewKnowledge
-\]
+```
+Memory_new = Memory_old + NewKnowledge
+```
 
 ---
 
 # 🔍 Retrieval Pipeline
 
-\[
-Query
-\rightarrow
-Embedding
-\rightarrow
-Qdrant
-\rightarrow
-HybridSearch
-\rightarrow
-RRF
-\rightarrow
-TopK
-\rightarrow
-LLM
-\]
+```
+Query -> Embedding -> Qdrant -> HybridSearch -> RRF -> TopK -> LLM
+```
 
 ---
 
 # 📦 End-to-End Retrieval Equation
 
-\[
-Answer
-=
-LLM
-\left(
-TopK
-\left(
-RRF
-\left(
-BM25,
-CosineSimilarity
-\right)
-\right)
-\right)
-\]
+```
+Answer = LLM( TopK( RRF( BM25, CosineSimilarity ) ) )
+```
 
 ---
 
@@ -501,15 +390,18 @@ CosineSimilarity
 | Component | Formula / Algorithm |
 |-----------|----------------------|
 | BM25 | Probabilistic Ranking Function |
-| OpenAI Embeddings | \(x \rightarrow \mathbb{R}^{1536}\) |
+| Dense Embeddings | `x -> vector in R^768` |
 | Qdrant | Cosine Similarity + HNSW |
 | Hybrid Search | Sparse + Dense Retrieval |
 | Rank Fusion | Reciprocal Rank Fusion (RRF) |
 | Chunking | 512 Tokens + 50 Overlap |
 | Retrieval | Top-K Similarity Search |
-| Mastra | Workflow State Transition \(S_{i+1}=f(S_i)\) |
-| Memory | \(M_{new}=M_{old}+Knowledge\) |
-| Final Answer | \(LLM(RRF(BM25+Dense))\) |
+| Mastra | Workflow State Transition `S(i+1) = f(S_i)` |
+| Memory | `M_new = M_old + Knowledge` |
+| Final Answer | `LLM(RRF(BM25 + Dense))` |
+
+---
+
 ## API Endpoints
 
 | Method | Endpoint | Role Required | Description |
