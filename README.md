@@ -1,8 +1,5 @@
 # Runbook Sentinel
 
-> **HiDevs x Mastra Hackathon — Track 5: Incident Response & Post-Mortem Agent**  
-> **Round 2 Submission**
-
 Runbook Sentinel is a production-grade AI-native SRE incident response and post-mortem platform. It orchestrates the full incident lifecycle — from alert ingestion through to knowledge writeback — using a safety-critical, human-in-the-loop architecture.
 
 ---
